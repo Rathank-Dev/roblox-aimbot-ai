@@ -671,7 +671,6 @@ for _, player in pairs(Players:GetPlayers()) do
 end
 
 -- Initialize drawing objects
-CreateWatermark()
 CreateFOVCircle()
 
 -- Menu Toggle Key
