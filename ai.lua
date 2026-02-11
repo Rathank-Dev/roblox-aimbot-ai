@@ -598,7 +598,7 @@ local function CreateWatermark()
     watermark.Text.Outline = true
     watermark.Text.OutlineColor = Color3.new(0, 0, 0)
     watermark.Text.Color = Color3.fromRGB(0, 255, 255)
-    watermark.Text.Text = "KKG-Z v4.0 | Universal"
+    watermark.Text.Text = "KON KHMER GENZ BY RATHANK"
     
     watermark.FPS.Size = 12
     watermark.FPS.Font = 2
@@ -667,7 +667,7 @@ local function CreateGUI()
     TitleText.Size = UDim2.new(1, -40, 1, 0)
     TitleText.Position = UDim2.new(0, 10, 0, 0)
     TitleText.BackgroundTransparency = 1
-    TitleText.Text = "🎯 KKG-Z UNIVERSAL | AIMBOT + ESP | Anti-Ban Lv.3"
+    TitleText.Text = "KON KHMER GENZ BY RATHANK"
     TitleText.TextColor3 = Color3.new(1, 1, 1)
     TitleText.Font = Enum.Font.GothamBold
     TitleText.TextSize = 16
@@ -1010,7 +1010,7 @@ local function CreateGUI()
     StatusText.Size = UDim2.new(1, -10, 1, 0)
     StatusText.Position = UDim2.new(0, 5, 0, 0)
     StatusText.BackgroundTransparency = 1
-    StatusText.Text = "🛡️ ANTI-BAN ACTIVE | TEAM CHECK ON | FOV: " .. Config.FOV .. " | ESP: " .. (Config.ESP and "ON" or "OFF")
+    StatusText.Text = "ANTI-BAN ACTIVE | TEAM CHECK ON | FOV: " .. Config.FOV .. " | ESP: " .. (Config.ESP and "ON" or "OFF")
     StatusText.TextColor3 = Color3.new(1, 1, 1)
     StatusText.Font = Enum.Font.Gotham
     StatusText.TextSize = 12
@@ -1098,13 +1098,10 @@ local function Init()
     end)
     
     print("=" .. string.rep("=", 50))
-    print("🎯 KKG-Z UNIVERSAL v4.0 LOADED SUCCESSFULLY")
+    print("KON KHMER GENZ LOADED SUCCESSFULLY")
     print("=" .. string.rep("=", 50))
-    print("📱 Press INSERT to toggle menu")
-    print("🛡️ Anti-Ban: Active | ID: " .. AntiBan.SessionID)
-    print("👁️ ESP: Box | Name | Health | Distance | Weapon")
-    print("🎯 Aimbot: Team Check | FOV | Smoothing")
-    print("📊 Game: " .. tostring(game.PlaceId))
+    print("Anti-Ban: Active | ID: " .. AntiBan.SessionID)
+    print("Game: " .. tostring(game.PlaceId))
     print("=" .. string.rep("=", 50))
 end
 
