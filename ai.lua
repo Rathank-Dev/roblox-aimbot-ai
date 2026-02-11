@@ -1,6 +1,5 @@
--- KKG-Z UNIVERSAL AIMBOT PANEL v3.0
--- Works with ALL Roblox Games | Anti-Ban Protection
--- Advanced Detection Evasion System
+-- KKG-Z UNIVERSAL AIMBOT + ESP PANEL v4.0
+-- Complete GUI | Team Check | FOV System | Anti-Ban | Full ESP
 
 -- Services
 local Players = game:GetService("Players")
@@ -8,16 +7,9 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-
--- Anti-Cheat Detection Names (Common anti-cheat services)
-local AntiCheatNames = {
-    "AntiCheat", "AntiExploit", "Security", "Guardian",
-    "WatchDog", "Sentinel", "Shield", "Protection",
-    "AC_", "_AC", "CheatDetection", "ScriptDetection"
-}
+local Lighting = game:GetService("Lighting")
+local StarterGui = game:GetService("StarterGui")
 
 -- Local Player
 local LocalPlayer = Players.LocalPlayer
@@ -26,854 +18,823 @@ local Camera = Workspace.CurrentCamera
 -- Wait for player
 repeat task.wait() until LocalPlayer
 
--- Unique ID for this session (changes each load)
-local SessionID = HttpService:GenerateGUID(false):sub(1, 8)
-
 -- Anti-Ban Protection System
-local Protection = {
-    Enabled = true,
-    DetectionCount = 0,
-    LastDetection = 0,
+local AntiBan = {
+    Active = true,
     SafeMode = false,
-    ObfuscationLevel = 3,
+    DetectionCount = 0,
+    SessionID = HttpService:GenerateGUID(false):sub(1, 8),
     
-    Methods = {
-        NameSpoofing = true,
-        MemoryObfuscation = true,
-        RandomDelays = true,
-        FakeInputs = true,
-        PatternAvoidance = true,
-        HookProtection = true
-    }
-}
-
--- Universal Aimbot Configuration
-local Config = {
-    -- Core Settings
-    Enabled = true,
-    ActivationKey = "MouseButton2", -- MouseButton2, LeftShift, Q, E, etc.
-    ToggleMode = false,
-    
-    -- Targeting
-    TargetSelection = "Closest", -- Closest, FOV, Crosshair, Health, Distance
-    TeamCheck = true,
-    VisibleCheck = true,
-    WallCheck = true,
-    MaxDistance = 1000,
-    
-    -- Aimbot Behavior
-    Smoothing = 0.15,
-    Prediction = true,
-    PredictionMultiplier = 1.2,
-    Humanizer = true,
-    HumanizerVariance = 0.05,
-    
-    -- Hitbox Settings
-    Hitbox = "Head", -- Head, Torso, Random, Custom
-    CustomHitbox = "HumanoidRootPart",
-    MultipleHitboxes = false,
-    HitboxPriority = {"Head", "HumanoidRootPart", "UpperTorso"},
-    
-    -- FOV Settings
-    FOV = 120,
-    FOVVisible = true,
-    FOVColor = Color3.fromRGB(0, 255, 0),
-    DynamicFOV = false,
-    MaxFOV = 180,
-    MinFOV = 30,
-    
-    -- Anti-Detection
-    SilentAim = false,
-    SilentHitChance = 100,
-    DesyncEnabled = false,
-    FakeLag = false,
-    FakeLagAmount = 0.1,
-    
-    -- Visual
-    ShowTarget = true,
-    TargetESP = true,
-    Notification = true,
-    
-    -- Advanced
-    AutoUpdate = false,
-    AutoSwitch = true,
-    RecordMode = false,
-    TriggerBot = false,
-    TriggerDelay = 0.1,
-    
-    -- Game Specific (Auto-detected)
-    GameType = "Unknown",
-    CharacterModel = "R6", -- R6, R15, Custom
-    WeaponSystem = "Tool", -- Tool, Remote, Custom
-}
-
--- Auto-Detect Game Type
-local function DetectGame()
-    local gameId = game.PlaceId
-    
-    -- Known game patterns
-    local knownGames = {
-        [2753915549] = {Name = "Blox Fruits", Type = "Fighting", Model = "R15", Weapon = "Tool"},
-        [2788229376] = {Name = "Da Hood", Type = "FPS", Model = "R6", Weapon = "Tool"},
-        [292439477] = {Name = "Phantom Forces", Type = "FPS", Model = "R6", Weapon = "Tool"},
-        [5602055394] = {Name = "Doors", Type = "Horror", Model = "R15", Weapon = "Tool"},
-        [537413528] = {Name = "Build A Boat", Type = "Building", Model = "R15", Weapon = "Tool"},
-        [286090429] = {Name = "Arsenal", Type = "FPS", Model = "R6", Weapon = "Tool"},
-        [142823291] = {Name = "Murder Mystery 2", Type = "Social", Model = "R6", Weapon = "Tool"},
-        [6516141723] = {Name = "Doors", Type = "Horror", Model = "R15", Weapon = "Tool"},
-        [3956818381] = {Name = "Ninja Legends", Type = "Fighting", Model = "R15", Weapon = "Tool"},
-        [734159876] = {Name = "Brookhaven", Type = "RP", Model = "R15", Weapon = "Tool"},
-    }
-    
-    if knownGames[gameId] then
-        Config.GameType = knownGames[gameId].Name
-        Config.CharacterModel = knownGames[gameId].Model
-        Config.WeaponSystem = knownGames[gameId].Weapon
-    else
-        -- Auto-detect based on game features
-        if game:GetService("ReplicatedStorage"):FindFirstChild("Weapons") then
-            Config.WeaponSystem = "Remote"
-        end
-        
-        -- Check for R15 characters
-        local samplePlayer = Players:GetPlayers()[1]
-        if samplePlayer and samplePlayer.Character then
-            local humanoid = samplePlayer.Character:FindFirstChild("Humanoid")
-            if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
-                Config.CharacterModel = "R15"
-            end
-        end
-    end
-    
-    return Config.GameType
-end
-
--- Anti-Ban Protection Functions
-local function SetupProtection()
-    if not Protection.Enabled then return end
-    
-    -- Method 1: Randomize variable names each run
-    local RandomNames = {
-        Players = {"GamePlayers", "Users", "Clients", "Participants"},
-        Workspace = {"World", "Map", "Environment", "Scene"},
-        LocalPlayer = {"Me", "Self", "Client", "UserPlayer"},
-        Camera = {"View", "Perspective", "Vision", "Eye"}
-    }
-    
-    -- Method 2: Create fake legitimate-looking variables
-    local FakeVariables = {
-        AntiCheat = {
-            Script = Instance.new("StringValue"),
-            Checker = Instance.new("BoolValue"),
-            Detector = Instance.new("Folder")
-        },
-        GameAnalytics = {
-            Telemetry = Instance.new("RemoteEvent"),
-            Metrics = Instance.new("ModuleScript"),
-            Logger = Instance.new("StringValue")
-        }
-    }
-    
-    -- Method 3: Hook detection methods
-    local originalNamecall
-    originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
-        
-        -- Detect anti-cheat calls
-        if Protection.Methods.HookProtection then
-            for _, acName in ipairs(AntiCheatNames) do
-                if tostring(self):find(acName) or tostring(method):find(acName) then
-                    -- Return fake/legitimate data
-                    if method == "Kick" or method == "kick" then
-                        warn("[KKG-Z] Anti-cheat kick attempt blocked")
-                        return nil
-                    elseif method == "FindFirstChild" then
-                        -- Return fake child to confuse detection
-                        return FakeVariables.AntiCheat.Script
-                    end
-                end
-            end
-        end
-        
-        return originalNamecall(self, ...)
-    end)
-    
-    -- Method 4: Pattern avoidance (random delays between operations)
-    local lastOperation = tick()
-    local function SafeWait()
-        if Protection.Methods.RandomDelays then
-            local randomDelay = math.random(5, 50) / 1000 -- 5-50ms
-            task.wait(randomDelay)
-        end
-    end
-    
-    -- Method 5: Memory obfuscation (change memory patterns)
-    local MemoryBuffer = {}
-    for i = 1, 1000 do
-        MemoryBuffer[i] = HttpService:GenerateGUID(false)
-    end
-    
-    -- Method 6: Fake user inputs to mask real ones
-    if Protection.Methods.FakeInputs then
-        task.spawn(function()
-            while Protection.Enabled do
-                task.wait(math.random(1, 5))
-                -- Send fake mouse movements
-                if UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
-                    mousemoverel(math.random(-2, 2), math.random(-2, 2))
-                end
-            end
-        end)
-    end
-    
-    -- Method 7: Monitor for detection attempts
-    local DetectionMonitor = Instance.new("BindableEvent")
-    DetectionMonitor.Name = "SystemHealthMonitor_" .. SessionID
-    
-    local function CheckForDetectors()
-        for _, service in pairs(game:GetChildren()) do
-            for _, acName in ipairs(AntiCheatNames) do
-                if service.Name:find(acName) then
-                    Protection.DetectionCount += 1
-                    Protection.LastDetection = tick()
-                    
-                    if Protection.DetectionCount > 3 then
-                        Protection.SafeMode = true
-                        warn("[KKG-Z] Multiple detections detected, entering safe mode")
-                    end
-                    
-                    -- Obfuscate further
-                    Protection.ObfuscationLevel = math.min(5, Protection.ObfuscationLevel + 1)
-                end
-            end
-        end
-    end
-    
-    -- Regular detection scans
-    task.spawn(function()
-        while Protection.Enabled do
-            task.wait(math.random(10, 30))
-            CheckForDetectors()
-        end
-    end)
-    
-    print("[KKG-Z] Protection system loaded: Level " .. Protection.ObfuscationLevel)
-end
-
--- Advanced Aimbot Core
-local Aimbot = {
-    Active = false,
-    CurrentTarget = nil,
-    TargetHistory = {},
-    PredictionCache = {},
-    HumanizerOffset = Vector3.new(0, 0, 0),
-    
-    -- Hitbox scanning
-    Hitboxes = {
-        Head = {"Head", "head", "HEAD"},
-        Torso = {"Torso", "UpperTorso", "LowerTorso", "HumanoidRootPart"},
-        Limbs = {"Left Arm", "Right Arm", "Left Leg", "Right Leg", "LeftUpperArm", "RightUpperArm"},
-        Custom = {}
+    BlockedMethods = {
+        "Kick", "kick", "Ban", "ban", "Shutdown", "shutdown",
+        "Crash", "crash", "Detect", "detect", "Log", "log"
     },
     
-    -- Game-specific adaptations
-    GameAdapters = {
-        ["Blox Fruits"] = {
-            HitboxPriority = {"HumanoidRootPart", "Head", "UpperTorso"},
-            Prediction = 1.5,
-            MaxDistance = 500
-        },
-        ["Da Hood"] = {
-            HitboxPriority = {"Head", "HumanoidRootPart"},
-            Prediction = 1.1,
-            MaxDistance = 300
-        },
-        ["Phantom Forces"] = {
-            HitboxPriority = {"Head"},
-            Prediction = 1.3,
-            MaxDistance = 1000
-        },
-        ["Arsenal"] = {
-            HitboxPriority = {"Head"},
-            Prediction = 1.2,
-            MaxDistance = 800
-        }
-    }
+    FakeValues = {},
+    
+    Init = function(self)
+        -- Create fake values to confuse anti-cheat
+        for i = 1, 10 do
+            local fake = Instance.new("StringValue")
+            fake.Name = "AntiCheat_" .. math.random(1000, 9999)
+            fake.Value = "Clean"
+            fake.Parent = game:GetService("CoreGui")
+            table.insert(self.FakeValues, fake)
+        end
+        
+        -- Hook namecall for protection
+        local oldNamecall = hookmetamethod and hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod and getnamecallmethod() or ""
+            local args = {...}
+            
+            for _, blocked in ipairs(self.BlockedMethods) do
+                if method == blocked then
+                    warn("[KKG-Z] Blocked: " .. tostring(method))
+                    return nil
+                end
+            end
+            
+            return oldNamecall(self, ...)
+        end)
+        
+        print("[KKG-Z] Anti-Ban Active | ID: " .. self.SessionID)
+    end
 }
 
--- Universal GetPlayers function (works with all games)
-function Aimbot:GetValidPlayers()
-    local validPlayers = {}
+-- Universal Configuration
+local Config = {
+    -- Menu
+    MenuOpen = true,
+    MenuKey = "Insert",
     
-    -- Try multiple methods to get players
-    local playerLists = {
-        Players:GetPlayers(),
-        Workspace:FindFirstChild("Players") and Workspace.Players:GetChildren() or {},
-        game:FindFirstChild("Models") and game.Models:GetChildren() or {}
+    -- Aimbot
+    Aimbot = false,
+    AimbotKey = "MouseButton2",
+    AimbotSmooth = 0.25,
+    AimPart = "Head",
+    TeamCheck = true,
+    VisibleCheck = true,
+    MaxDistance = 1000,
+    
+    -- FOV System
+    FOV = 90,
+    FOVVisible = true,
+    FOVColor = Color3.fromRGB(0, 255, 0),
+    FOVTransparency = 0.7,
+    
+    -- ESP Box
+    ESP = false,
+    ESPBox = true,
+    ESPBoxColor = Color3.fromRGB(255, 50, 50),
+    ESPOutline = true,
+    ESPBoxStyle = "2D", -- 2D, 3D, Corner
+    
+    -- ESP Name
+    ESPName = true,
+    ESPNameColor = Color3.fromRGB(255, 255, 255),
+    
+    -- ESP Health
+    ESPHealth = true,
+    ESPHealthBar = true,
+    
+    -- ESP Distance
+    ESPDistance = true,
+    
+    -- ESP Weapon
+    ESPWeapon = true,
+    
+    -- ESP Tracer
+    ESPTracer = false,
+    TracerColor = Color3.fromRGB(0, 255, 255),
+    TracerStart = "Bottom", -- Bottom, Center, Crosshair
+    
+    -- ESP Chams
+    ESPChams = false,
+    ChamsColor = Color3.fromRGB(255, 50, 50),
+    ChamsTransparency = 0.5,
+    
+    -- ESP Glow
+    ESPGlow = false,
+    
+    -- Misc
+    Crosshair = false,
+    Watermark = true,
+    FPSBoost = false
+}
+
+-- Drawing Objects Cache
+local Drawings = {
+    FOVCircle = Drawing.new("Circle"),
+    Crosshair = Drawing.new("Square"),
+    Watermark = {},
+    ESP = {}
+}
+
+-- Initialize Drawings
+Drawings.FOVCircle.Thickness = 1
+Drawings.FOVCircle.NumSides = 60
+Drawings.FOVCircle.Filled = false
+Drawings.FOVCircle.Transparency = Config.FOVTransparency
+Drawings.FOVCircle.Color = Config.FOVColor
+Drawings.FOVCircle.Radius = Config.FOV
+Drawings.FOVCircle.Visible = Config.FOVVisible
+
+Drawings.Crosshair.Size = Vector2.new(6, 6)
+Drawings.Crosshair.Filled = true
+Drawings.Crosshair.Color = Color3.new(1, 1, 1)
+Drawings.Crosshair.Visible = false
+
+-- ESP Cache
+local ESPCache = {}
+local ChamsCache = {}
+local GlowCache = {}
+
+-- Create ESP for player
+local function CreateESP(player)
+    if player == LocalPlayer then return end
+    
+    local esp = {
+        Box = Drawing.new("Square"),
+        BoxOutline = Drawing.new("Square"),
+        Name = Drawing.new("Text"),
+        Health = Drawing.new("Text"),
+        Distance = Drawing.new("Text"),
+        Weapon = Drawing.new("Text"),
+        HealthBarBG = Drawing.new("Square"),
+        HealthBar = Drawing.new("Square"),
+        Tracer = Drawing.new("Line"),
+        Corner1 = Drawing.new("Line"),
+        Corner2 = Drawing.new("Line"),
+        Corner3 = Drawing.new("Line"),
+        Corner4 = Drawing.new("Line")
     }
     
-    for _, playerList in ipairs(playerLists) do
-        for _, player in ipairs(playerList) do
-            if player:IsA("Player") and player ~= LocalPlayer then
-                -- Team check
-                if Config.TeamCheck then
-                    if player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
-                        continue
-                    end
+    -- Configure Box
+    esp.Box.Thickness = 2
+    esp.Box.Filled = false
+    esp.Box.Color = Config.ESPBoxColor
+    
+    esp.BoxOutline.Thickness = 3
+    esp.BoxOutline.Filled = false
+    esp.BoxOutline.Color = Color3.new(0, 0, 0)
+    esp.BoxOutline.Transparency = 0.5
+    
+    -- Configure Text
+    esp.Name.Size = 14
+    esp.Name.Center = true
+    esp.Name.Outline = true
+    esp.Name.OutlineColor = Color3.new(0, 0, 0)
+    esp.Name.Color = Config.ESPNameColor
+    
+    esp.Health.Size = 12
+    esp.Health.Center = true
+    esp.Health.Outline = true
+    
+    esp.Distance.Size = 12
+    esp.Distance.Center = true
+    esp.Distance.Outline = true
+    
+    esp.Weapon.Size = 12
+    esp.Weapon.Center = true
+    esp.Weapon.Outline = true
+    
+    -- Configure Health Bars
+    esp.HealthBarBG.Filled = true
+    esp.HealthBarBG.Color = Color3.fromRGB(50, 50, 50)
+    esp.HealthBarBG.Transparency = 0.3
+    
+    esp.HealthBar.Filled = true
+    
+    -- Configure Tracer
+    esp.Tracer.Thickness = 1
+    esp.Tracer.Color = Config.TracerColor
+    
+    -- Configure Corners
+    for i = 1, 4 do
+        esp["Corner"..i].Thickness = 2
+        esp["Corner"..i].Color = Config.ESPBoxColor
+    end
+    
+    ESPCache[player] = esp
+    
+    -- Create Chams
+    if Config.ESPChams then
+        local char = player.Character
+        if char then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "KKGZ_Chams"
+            highlight.FillColor = Config.ChamsColor
+            highlight.FillTransparency = Config.ChamsTransparency
+            highlight.OutlineColor = Color3.new(1, 1, 1)
+            highlight.OutlineTransparency = 0.5
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.Adornee = char
+            highlight.Parent = char
+            
+            if Config.ESPGlow then
+                local glow = Instance.new("BloomEffect")
+                glow.Name = "KKGZ_Glow"
+                glow.Intensity = 0.3
+                glow.Size = 24
+                glow.Threshold = 0.8
+                glow.Parent = Lighting
+            end
+            
+            ChamsCache[player] = highlight
+        end
+    end
+end
+
+-- Remove ESP
+local function RemoveESP(player)
+    if ESPCache[player] then
+        for _, drawing in pairs(ESPCache[player]) do
+            drawing:Remove()
+        end
+        ESPCache[player] = nil
+    end
+    
+    if ChamsCache[player] then
+        ChamsCache[player]:Destroy()
+        ChamsCache[player] = nil
+    end
+end
+
+-- Update ESP
+local function UpdateESP()
+    if not Config.ESP then
+        for _, esp in pairs(ESPCache) do
+            for _, drawing in pairs(esp) do
+                drawing.Visible = false
+            end
+        end
+        return
+    end
+    
+    for player, esp in pairs(ESPCache) do
+        if not player or not player.Parent then
+            RemoveESP(player)
+            continue
+        end
+        
+        local char = player.Character
+        if not char then
+            for _, drawing in pairs(esp) do
+                drawing.Visible = false
+            end
+            continue
+        end
+        
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+        
+        if not humanoid or not root or humanoid.Health <= 0 then
+            for _, drawing in pairs(esp) do
+                drawing.Visible = false
+            end
+            continue
+        end
+        
+        local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+        if not onScreen then
+            for _, drawing in pairs(esp) do
+                drawing.Visible = false
+            end
+            continue
+        end
+        
+        -- Team Check
+        local isEnemy = true
+        if Config.TeamCheck and player.Team and LocalPlayer.Team then
+            isEnemy = player.Team ~= LocalPlayer.Team
+        end
+        
+        local boxColor = isEnemy and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(50, 255, 50)
+        local textColor = isEnemy and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 255, 100)
+        
+        -- Get head position for box height
+        local head = char:FindFirstChild("Head") or char:FindFirstChild("HeadHitbox") or char:FindFirstChild("HitboxHead")
+        local headPos = head and Camera:WorldToViewportPoint(head.Position) or pos
+        
+        local height = math.abs(headPos.Y - pos.Y) * 1.5
+        local width = height * 0.6
+        
+        -- Box ESP
+        if Config.ESPBox then
+            if Config.ESPBoxStyle == "2D" then
+                esp.Box.Size = Vector2.new(width, height)
+                esp.Box.Position = Vector2.new(pos.X - width/2, headPos.Y)
+                esp.Box.Color = boxColor
+                esp.Box.Visible = true
+                
+                if Config.ESPOutline then
+                    esp.BoxOutline.Size = Vector2.new(width + 2, height + 2)
+                    esp.BoxOutline.Position = Vector2.new(pos.X - width/2 - 1, headPos.Y - 1)
+                    esp.BoxOutline.Visible = true
+                else
+                    esp.BoxOutline.Visible = false
                 end
                 
-                -- Character check
-                local char = player.Character
-                if not char then continue end
+                -- Hide corners
+                for i = 1, 4 do
+                    esp["Corner"..i].Visible = false
+                end
                 
-                local humanoid = char:FindFirstChildOfClass("Humanoid")
-                if not humanoid or humanoid.Health <= 0 then continue end
+            elseif Config.ESPBoxStyle == "Corner" then
+                esp.Box.Visible = false
+                esp.BoxOutline.Visible = false
                 
-                table.insert(validPlayers, player)
+                -- Corner box
+                local cornerLength = width / 3
+                
+                -- Top left
+                esp.Corner1.From = Vector2.new(pos.X - width/2, headPos.Y)
+                esp.Corner1.To = Vector2.new(pos.X - width/2 + cornerLength, headPos.Y)
+                
+                esp.Corner2.From = Vector2.new(pos.X - width/2, headPos.Y)
+                esp.Corner2.To = Vector2.new(pos.X - width/2, headPos.Y + cornerLength)
+                
+                -- Top right
+                esp.Corner3.From = Vector2.new(pos.X + width/2, headPos.Y)
+                esp.Corner3.To = Vector2.new(pos.X + width/2 - cornerLength, headPos.Y)
+                
+                esp.Corner4.From = Vector2.new(pos.X + width/2, headPos.Y)
+                esp.Corner4.To = Vector2.new(pos.X + width/2, headPos.Y + cornerLength)
+                
+                for i = 1, 4 do
+                    esp["Corner"..i].Visible = true
+                end
+            end
+        else
+            esp.Box.Visible = false
+            esp.BoxOutline.Visible = false
+            for i = 1, 4 do
+                esp["Corner"..i].Visible = false
             end
         end
+        
+        -- Name ESP
+        if Config.ESPName then
+            esp.Name.Text = player.Name .. (isEnemy and " [ENEMY]" or " [TEAM]")
+            esp.Name.Position = Vector2.new(pos.X, headPos.Y - 25)
+            esp.Name.Color = textColor
+            esp.Name.Visible = true
+        else
+            esp.Name.Visible = false
+        end
+        
+        -- Health ESP
+        if Config.ESPHealth then
+            esp.Health.Text = math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
+            esp.Health.Position = Vector2.new(pos.X, headPos.Y + height + 5)
+            esp.Health.Color = Color3.new(1 - humanoid.Health/humanoid.MaxHealth, humanoid.Health/humanoid.MaxHealth, 0)
+            esp.Health.Visible = true
+            
+            -- Health Bar
+            if Config.ESPHealthBar then
+                local healthPercent = humanoid.Health / humanoid.MaxHealth
+                local barWidth = 50
+                local barHeight = 4
+                local barY = headPos.Y - 10
+                
+                esp.HealthBarBG.Size = Vector2.new(barWidth, barHeight)
+                esp.HealthBarBG.Position = Vector2.new(pos.X - barWidth/2, barY)
+                esp.HealthBarBG.Visible = true
+                
+                esp.HealthBar.Size = Vector2.new(barWidth * healthPercent, barHeight)
+                esp.HealthBar.Position = Vector2.new(pos.X - barWidth/2, barY)
+                esp.HealthBar.Color = Color3.new(1 - healthPercent, healthPercent, 0)
+                esp.HealthBar.Visible = true
+            else
+                esp.HealthBarBG.Visible = false
+                esp.HealthBar.Visible = false
+            end
+        else
+            esp.Health.Visible = false
+            esp.HealthBarBG.Visible = false
+            esp.HealthBar.Visible = false
+        end
+        
+        -- Distance ESP
+        if Config.ESPDistance then
+            local distance = math.floor((root.Position - Camera.CFrame.Position).Magnitude)
+            esp.Distance.Text = distance .. " studs"
+            esp.Distance.Position = Vector2.new(pos.X, headPos.Y + height + 20)
+            esp.Distance.Color = Color3.new(1, 1, 1)
+            esp.Distance.Visible = true
+        else
+            esp.Distance.Visible = false
+        end
+        
+        -- Weapon ESP
+        if Config.ESPWeapon then
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool then
+                esp.Weapon.Text = tool.Name
+            else
+                esp.Weapon.Text = "No Weapon"
+            end
+            esp.Weapon.Position = Vector2.new(pos.X, headPos.Y + height + 35)
+            esp.Weapon.Color = Color3.fromRGB(255, 255, 0)
+            esp.Weapon.Visible = true
+        else
+            esp.Weapon.Visible = false
+        end
+        
+        -- Tracer
+        if Config.ESPTracer then
+            local startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+            if Config.TracerStart == "Center" then
+                startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+            elseif Config.TracerStart == "Crosshair" then
+                startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+            end
+            
+            esp.Tracer.From = startPos
+            esp.Tracer.To = Vector2.new(pos.X, headPos.Y + height/2)
+            esp.Tracer.Color = Config.TracerColor
+            esp.Tracer.Visible = true
+        else
+            esp.Tracer.Visible = false
+        end
+        
+        -- Update Chams
+        if ChamsCache[player] then
+            ChamsCache[player].FillColor = Config.ChamsColor
+            ChamsCache[player].FillTransparency = Config.ChamsTransparency
+            ChamsCache[player].Enabled = Config.ESPChams
+        end
     end
-    
-    return validPlayers
 end
 
--- Advanced hitbox detection
-function Aimbot:GetBestHitbox(character)
-    if not character then return nil end
-    
-    local hitboxes = {}
-    
-    -- Add all possible hitboxes
-    for _, hitboxName in ipairs(Aimbot.Hitboxes.Head) do
-        local part = character:FindFirstChild(hitboxName)
-        if part then table.insert(hitboxes, part) end
-    end
-    
-    for _, hitboxName in ipairs(Aimbot.Hitboxes.Torso) do
-        local part = character:FindFirstChild(hitboxName)
-        if part then table.insert(hitboxes, part) end
-    end
-    
-    -- Game-specific hitboxes
-    if Aimbot.GameAdapters[Config.GameType] then
-        local adapter = Aimbot.GameAdapters[Config.GameType]
-        for _, hitboxName in ipairs(adapter.HitboxPriority or {}) do
-            local part = character:FindFirstChild(hitboxName)
-            if part then
-                table.insert(hitboxes, 1, part) -- Prioritize
-            end
-        end
-    end
-    
-    -- Return based on config
-    if Config.Hitbox == "Head" then
-        for _, part in ipairs(hitboxes) do
-            if table.find(Aimbot.Hitboxes.Head, part.Name) then
-                return part
-            end
-        end
-    elseif Config.Hitbox == "Torso" then
-        for _, part in ipairs(hitboxes) do
-            if table.find(Aimbot.Hitboxes.Torso, part.Name) then
-                return part
-            end
-        end
-    elseif Config.Hitbox == "Custom" then
-        local part = character:FindFirstChild(Config.CustomHitbox)
-        if part then return part end
-    end
-    
-    -- Fallback: first available hitbox
-    return hitboxes[1]
-end
+-- Aimbot Functions
+local Aimbot = {
+    CurrentTarget = nil,
+    Active = false
+}
 
--- Visibility check with raycasting
-function Aimbot:IsVisible(character, hitbox)
-    if not Config.VisibleCheck then return true end
-    if not character or not hitbox then return false end
+function Aimbot:GetClosest()
+    if not Config.Aimbot then return nil end
     
-    -- Multiple ray origins for better accuracy
-    local origins = {
-        Camera.CFrame.Position,
-        Camera.CFrame.Position + Vector3.new(0, 2, 0), -- Slightly above
-        Camera.CFrame.Position + Camera.CFrame.LookVector * 2 -- Forward
-    }
+    local closest = nil
+    local closestDist = Config.FOV
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     
-    local visibleCount = 0
-    
-    for _, origin in ipairs(origins) do
-        local direction = (hitbox.Position - origin).Unit
-        local ray = Ray.new(origin, direction * Config.MaxDistance)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
         
-        local ignoreList = {LocalPlayer.Character, Camera, character}
-        
-        -- Add game-specific ignore items
-        local gameParts = Workspace:GetChildren()
-        for _, part in ipairs(gameParts) do
-            if part:IsA("BasePart") and part.Transparency > 0.9 then
-                table.insert(ignoreList, part)
-            end
+        if Config.TeamCheck and player.Team and LocalPlayer.Team then
+            if player.Team == LocalPlayer.Team then continue end
         end
         
-        local hit, position = Workspace:FindPartOnRayWithIgnoreList(ray, ignoreList)
+        local char = player.Character
+        if not char then continue end
         
-        if hit and hit:IsDescendantOf(character) then
-            visibleCount += 1
-        end
-    end
-    
-    return visibleCount >= 1 -- At least one ray hit
-end
-
--- Prediction system
-function Aimbot:CalculatePrediction(targetPart, character)
-    if not Config.Prediction or not targetPart or not character then
-        return targetPart.Position
-    end
-    
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return targetPart.Position end
-    
-    -- Get velocity
-    local velocity = Vector3.new(0, 0, 0)
-    if targetPart:IsA("BasePart") then
-        velocity = targetPart.Velocity
-    end
-    
-    -- Distance based prediction
-    local distance = (targetPart.Position - Camera.CFrame.Position).Magnitude
-    local travelTime = distance / 1000 -- Approximate
-    
-    -- Game-specific prediction multiplier
-    local predictionMult = Config.PredictionMultiplier
-    if Aimbot.GameAdapters[Config.GameType] then
-        predictionMult = Aimbot.GameAdapters[Config.GameType].Prediction or predictionMult
-    end
-    
-    -- Calculate predicted position
-    local predictedPos = targetPart.Position + (velocity * travelTime * predictionMult)
-    
-    -- Add humanizer variance
-    if Config.Humanizer then
-        local variance = Vector3.new(
-            (math.random() * 2 - 1) * Config.HumanizerVariance,
-            (math.random() * 2 - 1) * Config.HumanizerVariance,
-            (math.random() * 2 - 1) * Config.HumanizerVariance
-        )
-        predictedPos = predictedPos + variance
-    end
-    
-    return predictedPos
-end
-
--- Target selection algorithms
-function Aimbot:SelectTarget()
-    local validPlayers = Aimbot:GetValidPlayers()
-    if #validPlayers == 0 then return nil end
-    
-    local bestTarget = nil
-    local bestScore = math.huge
-    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    
-    for _, player in ipairs(validPlayers) do
-        local character = player.Character
-        if not character then continue end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then continue end
         
-        local hitbox = Aimbot:GetBestHitbox(character)
-        if not hitbox then continue end
-        
-        -- Visibility check
-        if not Aimbot:IsVisible(character, hitbox) then continue end
+        local aimPart = char:FindFirstChild(Config.AimPart) or char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+        if not aimPart then continue end
         
         -- Distance check
-        local distance = (hitbox.Position - Camera.CFrame.Position).Magnitude
+        local distance = (aimPart.Position - Camera.CFrame.Position).Magnitude
         if distance > Config.MaxDistance then continue end
         
-        local score = math.huge
-        
-        -- Different target selection methods
-        if Config.TargetSelection == "Closest" then
-            score = distance
-            
-        elseif Config.TargetSelection == "FOV" then
-            local pos, onScreen = Camera:WorldToViewportPoint(hitbox.Position)
-            if onScreen then
-                local screenPos = Vector2.new(pos.X, pos.Y)
-                local fovDistance = (screenCenter - screenPos).Magnitude
-                score = fovDistance
-            end
-            
-        elseif Config.TargetSelection == "Crosshair" then
-            local pos, onScreen = Camera:WorldToViewportPoint(hitbox.Position)
-            if onScreen then
-                local screenPos = Vector2.new(pos.X, pos.Y)
-                score = (screenCenter - screenPos).Magnitude
-            end
-            
-        elseif Config.TargetSelection == "Health" then
-            local humanoid = character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                score = humanoid.Health
-            end
-            
-        elseif Config.TargetSelection == "Distance" then
-            score = distance
-        end
-        
-        -- Apply FOV filter
-        if Config.FOVVisible then
-            local pos, onScreen = Camera:WorldToViewportPoint(hitbox.Position)
-            if onScreen then
-                local screenPos = Vector2.new(pos.X, pos.Y)
-                local fovDistance = (screenCenter - screenPos).Magnitude
-                
-                local currentFOV = Config.FOV
-                if Config.DynamicFOV then
-                    -- Scale FOV based on distance
-                    currentFOV = math.clamp(Config.MaxFOV - (distance / 10), Config.MinFOV, Config.MaxFOV)
-                end
-                
-                if fovDistance > currentFOV then
-                    continue -- Outside FOV
-                end
+        -- Visibility check
+        if Config.VisibleCheck then
+            local ray = Ray.new(Camera.CFrame.Position, (aimPart.Position - Camera.CFrame.Position).Unit * distance)
+            local hit = Workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+            if hit and not hit:IsDescendantOf(player.Character) then
+                continue
             end
         end
         
-        if score < bestScore then
-            bestScore = score
-            bestTarget = player
+        local pos, onScreen = Camera:WorldToViewportPoint(aimPart.Position)
+        if not onScreen then continue end
+        
+        local screenPos = Vector2.new(pos.X, pos.Y)
+        local dist = (center - screenPos).Magnitude
+        
+        if dist < closestDist then
+            closestDist = dist
+            closest = player
         end
     end
     
-    return bestTarget
+    return closest
 end
 
--- Silent Aim System (harder to detect)
-function Aimbot:ApplySilentAim(targetPlayer)
-    if not Config.SilentAim or not targetPlayer then return end
-    
-    -- Only apply silent aim with certain chance
-    if math.random(1, 100) > Config.SilentHitChance then return end
-    
-    local character = targetPlayer.Character
-    if not character then return end
-    
-    local hitbox = Aimbot:GetBestHitbox(character)
-    if not hitbox then return end
-    
-    -- Modify mouse hit target (simplified version)
-    -- In a real implementation, this would hook mouse.Target
-    if Config.DesyncEnabled then
-        -- Create desync between client and server
-        task.spawn(function()
-            -- This is a conceptual implementation
-            -- Actual desync would require hooking network events
-        end)
-    end
-end
-
--- Main aimbot loop
 function Aimbot:Update()
-    if not Config.Enabled then return end
+    if not Config.Aimbot then 
+        self.Active = false
+        self.CurrentTarget = nil
+        return 
+    end
     
     -- Check activation key
-    if Config.ToggleMode then
-        if not Aimbot.Active then return end
-    else
-        -- Hold to activate
-        local key = Config.ActivationKey
-        if key == "MouseButton2" then
-            Aimbot.Active = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-        elseif key == "LeftShift" then
-            Aimbot.Active = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
-        else
-            -- Custom key
-            Aimbot.Active = UserInputService:IsKeyDown(Enum.KeyCode[key])
-        end
+    if Config.AimbotKey == "MouseButton2" then
+        self.Active = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+    elseif Config.AimbotKey == "LeftShift" then
+        self.Active = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+    elseif Config.AimbotKey == "Q" then
+        self.Active = UserInputService:IsKeyDown(Enum.KeyCode.Q)
+    elseif Config.AimbotKey == "E" then
+        self.Active = UserInputService:IsKeyDown(Enum.KeyCode.E)
+    elseif Config.AimbotKey == "V" then
+        self.Active = UserInputService:IsKeyDown(Enum.KeyCode.V)
+    elseif Config.AimbotKey == "X" then
+        self.Active = UserInputService:IsKeyDown(Enum.KeyCode.X)
     end
     
-    if not Aimbot.Active then
-        Aimbot.CurrentTarget = nil
+    if not self.Active then
+        self.CurrentTarget = nil
         return
     end
     
-    -- Select target
-    if not Aimbot.CurrentTarget or not Aimbot.CurrentTarget.Parent then
-        Aimbot.CurrentTarget = Aimbot:SelectTarget()
+    -- Get target
+    if not self.CurrentTarget or not self.CurrentTarget.Parent then
+        self.CurrentTarget = self:GetClosest()
     end
     
-    if not Aimbot.CurrentTarget then return end
+    if not self.CurrentTarget then return end
     
-    local character = Aimbot.CurrentTarget.Character
-    if not character then
-        Aimbot.CurrentTarget = nil
-        return
+    local char = self.CurrentTarget.Character
+    if not char then 
+        self.CurrentTarget = nil
+        return 
     end
     
-    -- Get hitbox
-    local hitbox = Aimbot:GetBestHitbox(character)
-    if not hitbox then
-        Aimbot.CurrentTarget = nil
-        return
+    local aimPart = char:FindFirstChild(Config.AimPart) or char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+    if not aimPart then 
+        self.CurrentTarget = nil
+        return 
     end
     
-    -- Apply silent aim if enabled
-    if Config.SilentAim then
-        Aimbot:ApplySilentAim(Aimbot.CurrentTarget)
-    end
+    -- Smooth aim
+    local targetPos = aimPart.Position
+    local cameraPos = Camera.CFrame.Position
+    local direction = (targetPos - cameraPos).Unit
     
-    -- Calculate target position with prediction
-    local targetPosition = Aimbot:CalculatePrediction(hitbox, character)
-    
-    -- Smooth aiming
     local currentLook = Camera.CFrame.LookVector
-    local direction = (targetPosition - Camera.CFrame.Position).Unit
-    local smoothedDirection = currentLook:Lerp(direction, Config.Smoothing)
+    local newDirection = currentLook:Lerp(direction, Config.AimbotSmooth)
     
-    -- Apply aim
-    Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + smoothedDirection)
-    
-    -- Record target for history
-    table.insert(Aimbot.TargetHistory, {
-        Player = Aimbot.CurrentTarget,
-        Time = tick(),
-        Position = targetPosition
-    })
-    
-    -- Limit history size
-    if #Aimbot.TargetHistory > 50 then
-        table.remove(Aimbot.TargetHistory, 1)
-    end
+    Camera.CFrame = CFrame.new(cameraPos, cameraPos + newDirection)
 end
 
--- FOV Circle Visualization
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = Config.FOVVisible
-FOVCircle.Color = Config.FOVColor
-FOVCircle.Thickness = 2
-FOVCircle.Filled = false
-FOVCircle.Radius = Config.FOV
-FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-
--- Target ESP Visualization
-local TargetESP = {
-    Box = Drawing.new("Square"),
-    Name = Drawing.new("Text"),
-    Distance = Drawing.new("Text"),
-    HealthBar = Drawing.new("Square"),
-    HealthFill = Drawing.new("Square")
-}
-
--- Initialize ESP drawings
-TargetESP.Box.Thickness = 2
-TargetESP.Box.Filled = false
-
-TargetESP.Name.Size = 14
-TargetESP.Name.Outline = true
-TargetESP.Name.Center = true
-
-TargetESP.Distance.Size = 12
-TargetESP.Distance.Outline = true
-TargetESP.Distance.Center = true
-
-TargetESP.HealthBar.Filled = true
-TargetESP.HealthFill.Filled = true
-
--- Update visuals
-local function UpdateVisuals()
-    -- Update FOV circle
-    FOVCircle.Visible = Config.FOVVisible
-    FOVCircle.Color = Config.FOVColor
-    FOVCircle.Radius = Config.FOV
-    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+-- Create Watermark
+local function CreateWatermark()
+    local watermark = {
+        BG = Drawing.new("Square"),
+        Text = Drawing.new("Text"),
+        FPS = Drawing.new("Text")
+    }
     
-    -- Update target ESP
-    local showESP = Config.TargetESP and Aimbot.CurrentTarget and Aimbot.Active
-    TargetESP.Box.Visible = showESP
-    TargetESP.Name.Visible = showESP
-    TargetESP.Distance.Visible = showESP
-    TargetESP.HealthBar.Visible = showESP
-    TargetESP.HealthFill.Visible = showESP
+    watermark.BG.Filled = true
+    watermark.BG.Color = Color3.fromRGB(0, 0, 0)
+    watermark.BG.Transparency = 0.8
     
-    if showESP then
-        local character = Aimbot.CurrentTarget.Character
-        if character then
-            local hitbox = Aimbot:GetBestHitbox(character)
-            if hitbox then
-                local pos, onScreen = Camera:WorldToViewportPoint(hitbox.Position)
-                if onScreen then
-                    -- Box
-                    local size = Vector2.new(50, 100)
-                    TargetESP.Box.Size = size
-                    TargetESP.Box.Position = Vector2.new(pos.X - size.X/2, pos.Y - size.Y/2)
-                    TargetESP.Box.Color = Color3.fromRGB(0, 255, 0)
-                    
-                    -- Name
-                    TargetESP.Name.Text = Aimbot.CurrentTarget.Name
-                    TargetESP.Name.Position = Vector2.new(pos.X, pos.Y - 60)
-                    TargetESP.Name.Color = Color3.fromRGB(255, 255, 255)
-                    
-                    -- Distance
-                    local distance = math.floor((hitbox.Position - Camera.CFrame.Position).Magnitude)
-                    TargetESP.Distance.Text = distance .. " studs"
-                    TargetESP.Distance.Position = Vector2.new(pos.X, pos.Y + 60)
-                    TargetESP.Distance.Color = Color3.fromRGB(200, 200, 200)
-                    
-                    -- Health bar
-                    local humanoid = character:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        local healthPercent = humanoid.Health / humanoid.MaxHealth
-                        local barWidth = 40
-                        local barHeight = 4
-                        local barY = pos.Y + 70
-                        
-                        TargetESP.HealthBar.Size = Vector2.new(barWidth, barHeight)
-                        TargetESP.HealthBar.Position = Vector2.new(pos.X - barWidth/2, barY)
-                        TargetESP.HealthBar.Color = Color3.fromRGB(50, 50, 50)
-                        
-                        TargetESP.HealthFill.Size = Vector2.new(barWidth * healthPercent, barHeight)
-                        TargetESP.HealthFill.Position = Vector2.new(pos.X - barWidth/2, barY)
-                        TargetESP.HealthFill.Color = Color3.fromRGB(255 * (1 - healthPercent), 255 * healthPercent, 0)
-                    end
-                end
-            end
+    watermark.Text.Size = 14
+    watermark.Text.Font = 3
+    watermark.Text.Outline = true
+    watermark.Text.OutlineColor = Color3.new(0, 0, 0)
+    watermark.Text.Color = Color3.fromRGB(0, 255, 255)
+    watermark.Text.Text = "KKG-Z v4.0 | Universal"
+    
+    watermark.FPS.Size = 12
+    watermark.FPS.Font = 2
+    watermark.FPS.Outline = true
+    watermark.FPS.Color = Color3.fromRGB(0, 255, 0)
+    
+    local frameCount = 0
+    local lastTime = tick()
+    
+    RunService.RenderStepped:Connect(function()
+        frameCount = frameCount + 1
+        local currentTime = tick()
+        
+        if currentTime - lastTime >= 1 then
+            local fps = math.floor(frameCount / (currentTime - lastTime))
+            watermark.FPS.Text = "FPS: " .. fps .. " | " .. Config.GameType or "Roblox"
+            frameCount = 0
+            lastTime = currentTime
         end
-    end
+        
+        if Config.Watermark then
+            watermark.BG.Size = Vector2.new(watermark.Text.TextBounds.X + 20, 50)
+            watermark.BG.Position = Vector2.new(10, 10)
+            watermark.BG.Visible = true
+            
+            watermark.Text.Position = Vector2.new(20, 15)
+            watermark.Text.Visible = true
+            
+            watermark.FPS.Position = Vector2.new(20, 35)
+            watermark.FPS.Visible = true
+        else
+            watermark.BG.Visible = false
+            watermark.Text.Visible = false
+            watermark.FPS.Visible = false
+        end
+    end)
+    
+    Drawings.Watermark = watermark
 end
 
--- Control Panel GUI
-local function CreateControlPanel()
+-- Create Complete GUI Panel
+local function CreateGUI()
     local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "KKGZ_AimbotPanel_" .. SessionID
+    ScreenGui.Name = "KKGZ_Universal_" .. AntiBan.SessionID
     ScreenGui.Parent = CoreGui
     
     -- Main Frame
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Size = UDim2.new(0, 400, 0, 500)
-    MainFrame.Position = UDim2.new(0, 10, 0, 10)
-    MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    MainFrame.BorderSizePixel = 1
-    MainFrame.BorderColor3 = Color3.fromRGB(0, 100, 255)
-    MainFrame.Parent = ScreenGui
+    local Main = Instance.new("Frame")
+    Main.Size = UDim2.new(0, 600, 0, 500)
+    Main.Position = UDim2.new(0.5, -300, 0.5, -250)
+    Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Main.BorderSizePixel = 2
+    Main.BorderColor3 = Color3.fromRGB(0, 150, 255)
+    Main.Active = true
+    Main.Draggable = true
+    Main.Parent = ScreenGui
     
     -- Title Bar
-    local TitleBar = Instance.new("Frame")
-    TitleBar.Size = UDim2.new(1, 0, 0, 30)
-    TitleBar.BackgroundColor3 = Color3.fromRGB(0, 50, 150)
-    TitleBar.BorderSizePixel = 0
-    TitleBar.Parent = MainFrame
+    local Title = Instance.new("Frame")
+    Title.Size = UDim2.new(1, 0, 0, 35)
+    Title.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+    Title.BorderSizePixel = 0
+    Title.Parent = Main
     
-    local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, -60, 1, 0)
-    Title.Position = UDim2.new(0, 10, 0, 0)
-    Title.BackgroundTransparency = 1
-    Title.Text = "🎯 KKG-Z Universal Aimbot | " .. Config.GameType
-    Title.TextColor3 = Color3.new(1, 1, 1)
-    Title.Font = Enum.Font.GothamBold
-    Title.TextSize = 14
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.Parent = TitleBar
+    local TitleText = Instance.new("TextLabel")
+    TitleText.Size = UDim2.new(1, -40, 1, 0)
+    TitleText.Position = UDim2.new(0, 10, 0, 0)
+    TitleText.BackgroundTransparency = 1
+    TitleText.Text = "🎯 KKG-Z UNIVERSAL | AIMBOT + ESP | Anti-Ban Lv.3"
+    TitleText.TextColor3 = Color3.new(1, 1, 1)
+    TitleText.Font = Enum.Font.GothamBold
+    TitleText.TextSize = 16
+    TitleText.TextXAlignment = Enum.TextXAlignment.Left
+    TitleText.Parent = Title
     
-    -- Close Button
     local CloseBtn = Instance.new("TextButton")
-    CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-    CloseBtn.Position = UDim2.new(1, -30, 0, 0)
+    CloseBtn.Size = UDim2.new(0, 35, 0, 35)
+    CloseBtn.Position = UDim2.new(1, -35, 0, 0)
     CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
     CloseBtn.Text = "X"
     CloseBtn.TextColor3 = Color3.new(1, 1, 1)
     CloseBtn.Font = Enum.Font.GothamBold
-    CloseBtn.TextSize = 14
-    CloseBtn.Parent = TitleBar
+    CloseBtn.TextSize = 18
+    CloseBtn.Parent = Title
     
     CloseBtn.MouseButton1Click:Connect(function()
+        Config.MenuOpen = false
         ScreenGui.Enabled = false
     end)
     
-    -- Scrolling Frame for Options
-    local ScrollFrame = Instance.new("ScrollingFrame")
-    ScrollFrame.Size = UDim2.new(1, -10, 1, -40)
-    ScrollFrame.Position = UDim2.new(0, 5, 0, 35)
-    ScrollFrame.BackgroundTransparency = 1
-    ScrollFrame.ScrollBarThickness = 4
-    ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 100, 255)
-    ScrollFrame.Parent = MainFrame
+    -- Tab System
+    local TabFrame = Instance.new("Frame")
+    TabFrame.Size = UDim2.new(1, 0, 1, -35)
+    TabFrame.Position = UDim2.new(0, 0, 0, 35)
+    TabFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    TabFrame.BorderSizePixel = 0
+    TabFrame.Parent = Main
     
-    -- Create option controls
-    local yPosition = 0
-    local optionHeight = 35
+    -- Tab Buttons
+    local TabButtons = Instance.new("Frame")
+    TabButtons.Size = UDim2.new(0, 150, 1, 0)
+    TabButtons.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    TabButtons.BorderSizePixel = 0
+    TabButtons.Parent = TabFrame
     
-    local function CreateToggleOption(text, configKey)
-        local Frame = Instance.new("Frame")
-        Frame.Size = UDim2.new(1, 0, 0, optionHeight)
-        Frame.Position = UDim2.new(0, 0, 0, yPosition)
-        Frame.BackgroundTransparency = 1
-        Frame.Parent = ScrollFrame
+    local TabContents = Instance.new("Frame")
+    TabContents.Size = UDim2.new(1, -150, 1, 0)
+    TabContents.Position = UDim2.new(0, 150, 0, 0)
+    TabContents.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    TabContents.BorderSizePixel = 0
+    TabContents.Parent = TabFrame
+    
+    local tabs = {"AIMBOT", "FOV", "ESP BOX", "ESP TEXT", "TRACER", "CHAMS", "MISC"}
+    local currentTab = "AIMBOT"
+    local tabButtons = {}
+    local tabPanels = {}
+    
+    -- Create Tab Panels
+    for i, tabName in ipairs(tabs) do
+        -- Tab Button
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -10, 0, 35)
+        btn.Position = UDim2.new(0, 5, 0, 5 + (i-1) * 40)
+        btn.BackgroundColor3 = currentTab == tabName and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(40, 40, 40)
+        btn.Text = tabName
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 13
+        btn.Parent = TabButtons
         
-        local Label = Instance.new("TextLabel")
-        Label.Size = UDim2.new(0.7, -5, 1, 0)
-        Label.Position = UDim2.new(0, 0, 0, 0)
-        Label.BackgroundTransparency = 1
-        Label.Text = text
-        Label.TextColor3 = Color3.new(1, 1, 1)
-        Label.Font = Enum.Font.Gotham
-        Label.TextSize = 13
-        Label.TextXAlignment = Enum.TextXAlignment.Left
-        Label.Parent = Frame
+        -- Tab Panel
+        local panel = Instance.new("ScrollingFrame")
+        panel.Size = UDim2.new(1, -20, 1, -20)
+        panel.Position = UDim2.new(0, 10, 0, 10)
+        panel.BackgroundTransparency = 1
+        panel.BorderSizePixel = 0
+        panel.ScrollBarThickness = 4
+        panel.ScrollBarImageColor3 = Color3.fromRGB(0, 150, 255)
+        panel.Visible = currentTab == tabName
+        panel.Parent = TabContents
         
-        local Toggle = Instance.new("TextButton")
-        Toggle.Size = UDim2.new(0.3, -5, 0, 25)
-        Toggle.Position = UDim2.new(0.7, 5, 0, 5)
-        Toggle.BackgroundColor3 = Config[configKey] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
-        Toggle.Text = Config[configKey] and "ON" or "OFF"
-        Toggle.TextColor3 = Color3.new(1, 1, 1)
-        Toggle.Font = Enum.Font.Gotham
-        Toggle.TextSize = 12
-        Toggle.Parent = Frame
+        tabButtons[tabName] = btn
+        tabPanels[tabName] = panel
         
-        Toggle.MouseButton1Click:Connect(function()
-            Config[configKey] = not Config[configKey]
-            Toggle.Text = Config[configKey] and "ON" or "OFF"
-            Toggle.BackgroundColor3 = Config[configKey] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+        btn.MouseButton1Click:Connect(function()
+            currentTab = tabName
+            for name, button in pairs(tabButtons) do
+                button.BackgroundColor3 = name == tabName and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(40, 40, 40)
+            end
+            for name, pane in pairs(tabPanels) do
+                pane.Visible = name == tabName
+            end
         end)
-        
-        yPosition += optionHeight
-        return Frame
     end
     
-    local function CreateSliderOption(text, configKey, min, max)
-        local Frame = Instance.new("Frame")
-        Frame.Size = UDim2.new(1, 0, 0, optionHeight + 20)
-        Frame.Position = UDim2.new(0, 0, 0, yPosition)
-        Frame.BackgroundTransparency = 1
-        Frame.Parent = ScrollFrame
+    -- Aimbot Tab Content
+    local yPos = 0
+    
+    local function CreateToggle(parent, text, configKey, y)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, -20, 0, 35)
+        frame.Position = UDim2.new(0, 10, 0, y)
+        frame.BackgroundTransparency = 1
+        frame.Parent = parent
         
-        local Label = Instance.new("TextLabel")
-        Label.Size = UDim2.new(1, 0, 0, 20)
-        Label.Position = UDim2.new(0, 0, 0, 0)
-        Label.BackgroundTransparency = 1
-        Label.Text = text .. ": " .. Config[configKey]
-        Label.TextColor3 = Color3.new(1, 1, 1)
-        Label.Font = Enum.Font.Gotham
-        Label.TextSize = 13
-        Label.TextXAlignment = Enum.TextXAlignment.Left
-        Label.Parent = Frame
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.7, -5, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Color3.new(1, 1, 1)
+        label.Font = Enum.Font.Gotham
+        label.TextSize = 14
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
         
-        local Slider = Instance.new("Frame")
-        Slider.Size = UDim2.new(1, 0, 0, 4)
-        Slider.Position = UDim2.new(0, 0, 0, 25)
-        Slider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-        Slider.BorderSizePixel = 0
-        Slider.Parent = Frame
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.3, -5, 0, 25)
+        btn.Position = UDim2.new(0.7, 5, 0, 5)
+        btn.BackgroundColor3 = Config[configKey] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+        btn.Text = Config[configKey] and "ON" or "OFF"
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 12
+        btn.Parent = frame
         
-        local Fill = Instance.new("Frame")
-        Fill.Size = UDim2.new((Config[configKey] - min) / (max - min), 0, 1, 0)
-        Fill.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
-        Fill.BorderSizePixel = 0
-        Fill.Parent = Slider
+        btn.MouseButton1Click:Connect(function()
+            Config[configKey] = not Config[configKey]
+            btn.Text = Config[configKey] and "ON" or "OFF"
+            btn.BackgroundColor3 = Config[configKey] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+        end)
+        
+        return y + 40
+    end
+    
+    local function CreateSlider(parent, text, configKey, min, max, format, y)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, -20, 0, 45)
+        frame.Position = UDim2.new(0, 10, 0, y)
+        frame.BackgroundTransparency = 1
+        frame.Parent = parent
+        
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.7, -5, 0, 20)
+        label.BackgroundTransparency = 1
+        label.Text = text .. ": " .. (format == "percent" and (Config[configKey] * 100).."%" or Config[configKey])
+        label.TextColor3 = Color3.new(1, 1, 1)
+        label.Font = Enum.Font.Gotham
+        label.TextSize = 13
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
+        
+        local slider = Instance.new("Frame")
+        slider.Size = UDim2.new(0.7, -5, 0, 4)
+        slider.Position = UDim2.new(0, 0, 0, 25)
+        slider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        slider.BorderSizePixel = 0
+        slider.Parent = frame
+        
+        local fill = Instance.new("Frame")
+        fill.Size = UDim2.new((Config[configKey] - min) / (max - min), 0, 1, 0)
+        fill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        fill.BorderSizePixel = 0
+        fill.Parent = slider
+        
+        local valueDisplay = Instance.new("TextLabel")
+        valueDisplay.Size = UDim2.new(0.3, -5, 0, 20)
+        valueDisplay.Position = UDim2.new(0.7, 5, 0, 5)
+        valueDisplay.BackgroundTransparency = 1
+        valueDisplay.Text = Config[configKey]
+        valueDisplay.TextColor3 = Color3.fromRGB(0, 255, 0)
+        valueDisplay.Font = Enum.Font.GothamBold
+        valueDisplay.TextSize = 14
+        valueDisplay.Parent = frame
         
         local dragging = false
-        Slider.InputBegan:Connect(function(input)
+        slider.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = true
             end
@@ -882,15 +843,23 @@ local function CreateControlPanel()
         UserInputService.InputChanged:Connect(function(input)
             if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                 local mousePos = input.Position.X
-                local absolutePos = Slider.AbsolutePosition.X
-                local absoluteSize = Slider.AbsoluteSize.X
+                local absolutePos = slider.AbsolutePosition.X
+                local absoluteSize = slider.AbsoluteSize.X
                 
                 local relative = math.clamp((mousePos - absolutePos) / absoluteSize, 0, 1)
-                local value = math.floor(min + (max - min) * relative)
+                local value = min + (max - min) * relative
                 
-                Config[configKey] = value
-                Label.Text = text .. ": " .. value
-                Fill.Size = UDim2.new(relative, 0, 1, 0)
+                if format == "percent" then
+                    Config[configKey] = value
+                    label.Text = text .. ": " .. math.floor(value * 100) .. "%"
+                    valueDisplay.Text = math.floor(value * 100) .. "%"
+                else
+                    Config[configKey] = math.floor(value)
+                    label.Text = text .. ": " .. math.floor(value)
+                    valueDisplay.Text = math.floor(value)
+                end
+                
+                fill.Size = UDim2.new(relative, 0, 1, 0)
             end
         end)
         
@@ -900,231 +869,254 @@ local function CreateControlPanel()
             end
         end)
         
-        yPosition += optionHeight + 25
-        return Frame
+        return y + 50
     end
     
-    local function CreateDropdownOption(text, configKey, options)
-        local Frame = Instance.new("Frame")
-        Frame.Size = UDim2.new(1, 0, 0, optionHeight)
-        Frame.Position = UDim2.new(0, 0, 0, yPosition)
-        Frame.BackgroundTransparency = 1
-        Frame.Parent = ScrollFrame
+    local function CreateDropdown(parent, text, configKey, options, y)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, -20, 0, 35)
+        frame.Position = UDim2.new(0, 10, 0, y)
+        frame.BackgroundTransparency = 1
+        frame.Parent = parent
         
-        local Label = Instance.new("TextLabel")
-        Label.Size = UDim2.new(0.5, -5, 1, 0)
-        Label.Position = UDim2.new(0, 0, 0, 0)
-        Label.BackgroundTransparency = 1
-        Label.Text = text
-        Label.TextColor3 = Color3.new(1, 1, 1)
-        Label.Font = Enum.Font.Gotham
-        Label.TextSize = 13
-        Label.TextXAlignment = Enum.TextXAlignment.Left
-        Label.Parent = Frame
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.5, -5, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Color3.new(1, 1, 1)
+        label.Font = Enum.Font.Gotham
+        label.TextSize = 13
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
         
-        local Dropdown = Instance.new("TextButton")
-        Dropdown.Size = UDim2.new(0.5, -5, 0, 25)
-        Dropdown.Position = UDim2.new(0.5, 5, 0, 5)
-        Dropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        Dropdown.Text = Config[configKey]
-        Dropdown.TextColor3 = Color3.new(1, 1, 1)
-        Dropdown.Font = Enum.Font.Gotham
-        Dropdown.TextSize = 12
-        Dropdown.Parent = Frame
+        local dropdown = Instance.new("TextButton")
+        dropdown.Size = UDim2.new(0.5, -5, 0, 25)
+        dropdown.Position = UDim2.new(0.5, 5, 0, 5)
+        dropdown.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        dropdown.Text = Config[configKey]
+        dropdown.TextColor3 = Color3.new(1, 1, 1)
+        dropdown.Font = Enum.Font.Gotham
+        dropdown.TextSize = 12
+        dropdown.Parent = frame
         
-        local currentIndex = 1
-        for i, option in ipairs(options) do
-            if option == Config[configKey] then
-                currentIndex = i
+        local index = 1
+        for i, opt in ipairs(options) do
+            if opt == Config[configKey] then
+                index = i
                 break
             end
         end
         
-        Dropdown.MouseButton1Click:Connect(function()
-            currentIndex = currentIndex % #options + 1
-            local selected = options[currentIndex]
+        dropdown.MouseButton1Click:Connect(function()
+            index = index % #options + 1
+            local selected = options[index]
             Config[configKey] = selected
-            Dropdown.Text = selected
+            dropdown.Text = selected
         end)
         
-        yPosition += optionHeight
-        return Frame
+        return y + 40
     end
     
-    -- Create all options
-    CreateToggleOption("Aimbot Enabled", "Enabled")
-    CreateToggleOption("Toggle Mode (Hold/Toggle)", "ToggleMode")
-    CreateDropdownOption("Activation Key", "ActivationKey", {"MouseButton2", "LeftShift", "Q", "E", "V", "X"})
+    local function CreateColorPicker(parent, text, configKey, y)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, -20, 0, 35)
+        frame.Position = UDim2.new(0, 10, 0, y)
+        frame.BackgroundTransparency = 1
+        frame.Parent = parent
+        
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.7, -5, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Color3.new(1, 1, 1)
+        label.Font = Enum.Font.Gotham
+        label.TextSize = 13
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
+        
+        local colorDisplay = Instance.new("Frame")
+        colorDisplay.Size = UDim2.new(0.3, -5, 0, 20)
+        colorDisplay.Position = UDim2.new(0.7, 5, 0, 7)
+        colorDisplay.BackgroundColor3 = Config[configKey]
+        colorDisplay.BorderSizePixel = 1
+        colorDisplay.BorderColor3 = Color3.new(1, 1, 1)
+        colorDisplay.Parent = frame
+        
+        return y + 40
+    end
     
-    yPosition += 10
-    CreateDropdownOption("Target Selection", "TargetSelection", {"Closest", "FOV", "Crosshair", "Health", "Distance"})
-    CreateToggleOption("Team Check", "TeamCheck")
-    CreateToggleOption("Visibility Check", "VisibleCheck")
-    CreateToggleOption("Wall Check", "WallCheck")
-    CreateSliderOption("Max Distance", "MaxDistance", 100, 2000)
+    -- AIMBOT Tab
+    yPos = 10
+    yPos = CreateToggle(tabPanels["AIMBOT"], "Enable Aimbot", "Aimbot", yPos)
+    yPos = CreateDropdown(tabPanels["AIMBOT"], "Aim Key", "AimbotKey", {"MouseButton2", "LeftShift", "Q", "E", "V", "X"}, yPos)
+    yPos = CreateToggle(tabPanels["AIMBOT"], "Team Check", "TeamCheck", yPos)
+    yPos = CreateToggle(tabPanels["AIMBOT"], "Visibility Check", "VisibleCheck", yPos)
+    yPos = CreateSlider(tabPanels["AIMBOT"], "Smoothness", "AimbotSmooth", 0, 1, "percent", yPos)
+    yPos = CreateDropdown(tabPanels["AIMBOT"], "Aim Part", "AimPart", {"Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso"}, yPos)
+    yPos = CreateSlider(tabPanels["AIMBOT"], "Max Distance", "MaxDistance", 100, 2000, "", yPos)
     
-    yPosition += 10
-    CreateSliderOption("Smoothing", "Smoothing", 0, 1)
-    CreateToggleOption("Prediction", "Prediction")
-    CreateSliderOption("Prediction Multiplier", "PredictionMultiplier", 0.5, 2.0)
-    CreateToggleOption("Humanizer", "Humanizer")
+    -- FOV Tab
+    yPos = 10
+    yPos = CreateToggle(tabPanels["FOV"], "Show FOV Circle", "FOVVisible", yPos)
+    yPos = CreateSlider(tabPanels["FOV"], "FOV Size", "FOV", 30, 360, "", yPos)
+    yPos = CreateColorPicker(tabPanels["FOV"], "FOV Color", "FOVColor", yPos)
+    yPos = CreateSlider(tabPanels["FOV"], "FOV Transparency", "FOVTransparency", 0, 1, "percent", yPos)
     
-    yPosition += 10
-    CreateDropdownOption("Hitbox", "Hitbox", {"Head", "Torso", "Random", "Custom"})
-    CreateSliderOption("FOV Size", "FOV", 30, 360)
-    CreateToggleOption("Show FOV", "FOVVisible")
-    CreateToggleOption("Dynamic FOV", "DynamicFOV")
+    -- ESP BOX Tab
+    yPos = 10
+    yPos = CreateToggle(tabPanels["ESP BOX"], "Enable ESP", "ESP", yPos)
+    yPos = CreateToggle(tabPanels["ESP BOX"], "ESP Box", "ESPBox", yPos)
+    yPos = CreateDropdown(tabPanels["ESP BOX"], "Box Style", "ESPBoxStyle", {"2D", "Corner"}, yPos)
+    yPos = CreateToggle(tabPanels["ESP BOX"], "Box Outline", "ESPOutline", yPos)
+    yPos = CreateColorPicker(tabPanels["ESP BOX"], "Box Color", "ESPBoxColor", yPos)
     
-    yPosition += 10
-    CreateToggleOption("Silent Aim", "SilentAim")
-    CreateSliderOption("Silent Hit Chance", "SilentHitChance", 1, 100)
-    CreateToggleOption("Target ESP", "TargetESP")
-    CreateToggleOption("Trigger Bot", "TriggerBot")
+    -- ESP TEXT Tab
+    yPos = 10
+    yPos = CreateToggle(tabPanels["ESP TEXT"], "Show Name", "ESPName", yPos)
+    yPos = CreateColorPicker(tabPanels["ESP TEXT"], "Name Color", "ESPNameColor", yPos)
+    yPos = CreateToggle(tabPanels["ESP TEXT"], "Show Health", "ESPHealth", yPos)
+    yPos = CreateToggle(tabPanels["ESP TEXT"], "Health Bar", "ESPHealthBar", yPos)
+    yPos = CreateToggle(tabPanels["ESP TEXT"], "Show Distance", "ESPDistance", yPos)
+    yPos = CreateToggle(tabPanels["ESP TEXT"], "Show Weapon", "ESPWeapon", yPos)
     
-    yPosition += 20
-    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, yPosition)
+    -- TRACER Tab
+    yPos = 10
+    yPos = CreateToggle(tabPanels["TRACER"], "Enable Tracers", "ESPTracer", yPos)
+    yPos = CreateDropdown(tabPanels["TRACER"], "Tracer Start", "TracerStart", {"Bottom", "Center", "Crosshair"}, yPos)
+    yPos = CreateColorPicker(tabPanels["TRACER"], "Tracer Color", "TracerColor", yPos)
     
-    -- Protection Status
+    -- CHAMS Tab
+    yPos = 10
+    yPos = CreateToggle(tabPanels["CHAMS"], "Enable Chams", "ESPChams", yPos)
+    yPos = CreateColorPicker(tabPanels["CHAMS"], "Chams Color", "ChamsColor", yPos)
+    yPos = CreateSlider(tabPanels["CHAMS"], "Chams Transparency", "ChamsTransparency", 0, 1, "percent", yPos)
+    yPos = CreateToggle(tabPanels["CHAMS"], "Enable Glow", "ESPGlow", yPos)
+    
+    -- MISC Tab
+    yPos = 10
+    yPos = CreateToggle(tabPanels["MISC"], "Show Watermark", "Watermark", yPos)
+    yPos = CreateToggle(tabPanels["MISC"], "Show Crosshair", "Crosshair", yPos)
+    yPos = CreateToggle(tabPanels["MISC"], "FPS Boost", "FPSBoost", yPos)
+    
+    -- Status Bar
     local StatusBar = Instance.new("Frame")
     StatusBar.Size = UDim2.new(1, 0, 0, 30)
     StatusBar.Position = UDim2.new(0, 0, 1, -30)
-    StatusBar.BackgroundColor3 = Protection.SafeMode and Color3.fromRGB(150, 0, 0) or Color3.fromRGB(0, 100, 0)
+    StatusBar.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
     StatusBar.BorderSizePixel = 0
-    StatusBar.Parent = MainFrame
+    StatusBar.Parent = Main
     
     local StatusText = Instance.new("TextLabel")
     StatusText.Size = UDim2.new(1, -10, 1, 0)
     StatusText.Position = UDim2.new(0, 5, 0, 0)
     StatusText.BackgroundTransparency = 1
-    StatusText.Text = Protection.SafeMode and "⚠️ SAFE MODE ACTIVE - Low Detection" or "🛡️ Anti-Ban Active - Level " .. Protection.ObfuscationLevel
+    StatusText.Text = "🛡️ ANTI-BAN ACTIVE | TEAM CHECK ON | FOV: " .. Config.FOV .. " | ESP: " .. (Config.ESP and "ON" or "OFF")
     StatusText.TextColor3 = Color3.new(1, 1, 1)
     StatusText.Font = Enum.Font.Gotham
     StatusText.TextSize = 12
     StatusText.TextXAlignment = Enum.TextXAlignment.Left
     StatusText.Parent = StatusBar
     
-    -- Make draggable
-    local dragging = false
-    local dragStart, startPos
-    
-    TitleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = MainFrame.Position
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            MainFrame.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-    
     return ScreenGui
 end
 
--- Initialize everything
-local function Initialize()
-    -- Auto-detect game
-    local gameType = DetectGame()
+-- Initialize Everything
+local function Init()
+    -- Start Anti-Ban
+    AntiBan:Init()
     
-    -- Setup anti-ban protection
-    SetupProtection()
+    -- Create GUI
+    local GUI = CreateGUI()
+    GUI.Enabled = Config.MenuOpen
     
-    -- Create control panel
-    local Panel = CreateControlPanel()
+    -- Create Watermark
+    CreateWatermark()
     
-    -- Load game-specific config
-    if Aimbot.GameAdapters[Config.GameType] then
-        local adapter = Aimbot.GameAdapters[Config.GameType]
-        Config.MaxDistance = adapter.MaxDistance or Config.MaxDistance
-        Config.PredictionMultiplier = adapter.Prediction or Config.PredictionMultiplier
+    -- Setup ESP for existing players
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            CreateESP(player)
+        end
     end
     
-    -- Main loop
-    RunService.RenderStepped:Connect(function()
-        Aimbot:Update()
-        UpdateVisuals()
+    -- Player Added
+    Players.PlayerAdded:Connect(function(player)
+        task.wait(1)
+        CreateESP(player)
     end)
     
-    -- Keep track of target switching
-    if Config.AutoSwitch then
-        task.spawn(function()
-            while true do
-                task.wait(0.5)
-                if Aimbot.CurrentTarget and not Aimbot.CurrentTarget.Parent then
-                    Aimbot.CurrentTarget = nil
-                end
-            end
-        end)
-    end
+    -- Player Removed
+    Players.PlayerRemoving:Connect(RemoveESP)
     
-    -- Cleanup function
-    local function Cleanup()
-        for _, drawing in pairs(FOVCircle) do
-            if type(drawing) == "Drawing" then
-                drawing:Remove()
-            end
+    -- Character Added
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(char)
+            task.wait(0.5)
+            RemoveESP(player)
+            CreateESP(player)
+        end)
+    end)
+    
+    -- Menu Toggle
+    UserInputService.InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode[Config.MenuKey] then
+            Config.MenuOpen = not Config.MenuOpen
+            GUI.Enabled = Config.MenuOpen
+        end
+    end)
+    
+    -- Main Loop
+    RunService.RenderStepped:Connect(function()
+        -- Update FOV Circle
+        Drawings.FOVCircle.Visible = Config.FOVVisible
+        Drawings.FOVCircle.Color = Config.FOVColor
+        Drawings.FOVCircle.Radius = Config.FOV
+        Drawings.FOVCircle.Transparency = Config.FOVTransparency
+        Drawings.FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        
+        -- Update Crosshair
+        if Config.Crosshair then
+            Drawings.Crosshair.Position = Vector2.new(Camera.ViewportSize.X / 2 - 3, Camera.ViewportSize.Y / 2 - 3)
+            Drawings.Crosshair.Visible = true
+        else
+            Drawings.Crosshair.Visible = false
         end
         
-        for _, drawing in pairs(TargetESP) do
-            if type(drawing) == "Drawing" then
-                drawing:Remove()
-            end
+        -- Update Aimbot
+        Aimbot:Update()
+        
+        -- Update ESP
+        UpdateESP()
+        
+        -- FPS Boost
+        if Config.FPSBoost then
+            Lighting.GlobalShadows = false
+            Lighting.Brightness = 2
+        else
+            Lighting.GlobalShadows = true
         end
-    end
+    end)
     
-    -- Game exit cleanup
-    game:BindToClose(Cleanup)
-    
-    print("=" .. string.rep("=", 40))
-    print("🎯 KKG-Z UNIVERSAL AIMBOT PANEL v3.0")
-    print("=" .. string.rep("=", 40))
-    print("📊 Game Detected: " .. Config.GameType)
-    print("🛡️ Anti-Ban: Level " .. Protection.ObfuscationLevel)
-    print("📱 Press Insert to toggle menu")
-    print("🎯 Default aim key: RMB")
-    print("=" .. string.rep("=", 40))
+    print("=" .. string.rep("=", 50))
+    print("🎯 KKG-Z UNIVERSAL v4.0 LOADED SUCCESSFULLY")
+    print("=" .. string.rep("=", 50))
+    print("📱 Press INSERT to toggle menu")
+    print("🛡️ Anti-Ban: Active | ID: " .. AntiBan.SessionID)
+    print("👁️ ESP: Box | Name | Health | Distance | Weapon")
+    print("🎯 Aimbot: Team Check | FOV | Smoothing")
+    print("📊 Game: " .. tostring(game.PlaceId))
+    print("=" .. string.rep("=", 50))
 end
 
--- Start the script
-local success, error = pcall(Initialize)
+-- Start
+local success, err = pcall(Init)
 if not success then
-    warn("[KKG-Z] Initialization error: " .. tostring(error))
-    print("[KKG-Z] Retrying with fallback configuration...")
+    warn("[KKG-Z] Error: " .. tostring(err))
     
-    -- Fallback configuration
-    Config.SilentAim = false
-    Config.Prediction = false
-    Config.Humanizer = true
-    Protection.ObfuscationLevel = 5
+    -- Fallback initialization
+    AntiBan.Active = true
+    Config.SmoothAim = 0.3
+    Config.FOVVisible = true
     
-    -- Retry
-    pcall(Initialize)
+    pcall(Init)
 end
-
--- Universal hook for key press
-local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    
-    -- Additional protection layer
-    if Protection.SafeMode then
-        -- Randomize call patterns
-        task.wait(math.random(1, 10) / 1000)
-    end
-    
-    return oldNamecall(self, ...)
-end)
-
-print("[KKG-Z] Aimbot ready - Tested on 100+ games")
