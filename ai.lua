@@ -1,465 +1,156 @@
--- KKGZ ULTIMATE - COMPLETELY FIXED
--- TEAM CHECK WORKING | AIMBOT FIXED | ESP WORKING
-
--- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
-local Teams = game:GetService("Teams")
-local Lighting = game:GetService("Lighting")
-local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
 
 -- Local Player
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- Wait for critical services
-repeat task.wait() until LocalPlayer and Camera
-
--- FIXED TEAM CHECK SYSTEM - WORKS ON ALL GAMES
-local function IsEnemy(player)
-    if not player or player == LocalPlayer then return false end
-    
-    -- METHOD 1: Check Team service
-    if LocalPlayer.Team and player.Team then
-        return LocalPlayer.Team ~= player.Team
-    end
-    
-    -- METHOD 2: Check TeamColor
-    if LocalPlayer.TeamColor and player.TeamColor then
-        return LocalPlayer.TeamColor ~= player.TeamColor
-    end
-    
-    -- METHOD 3: Check Neutral flag
-    if player.Neutral == true then
-        return true
-    end
-    
-    -- METHOD 4: Check character colors (for games like Arsenal)
-    local success, result = pcall(function()
-        if LocalPlayer.Character and player.Character then
-            local lpHumanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            local pHumanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            if lpHumanoid and pHumanoid then
-                if lpHumanoid.RootPart and pHumanoid.RootPart then
-                    -- Check brick color
-                    if lpHumanoid.RootPart.BrickColor ~= pHumanoid.RootPart.BrickColor then
-                        return true
-                    end
+-- Anti-Ban Protection
+do
+    local function AntiBan()
+        -- Generate random name for script
+        local randomId = HttpService:GenerateGUID(false)
+        pcall(function() script.Name = "Module_" .. randomId end)
+        
+        -- Hook critical functions
+        local mt = getrawmetatable(game)
+        if mt then
+            local oldNamecall = mt.__namecall
+            local oldIndex = mt.__index
+            
+            setreadonly(mt, false)
+            
+            -- Block kick function
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                if method == "Kick" or method == "kick" then
+                    warn("[KKGZ] Kick attempt blocked")
+                    return nil
                 end
-            end
+                return oldNamecall(self, ...)
+            end)
+            
+            -- Block teleport
+            mt.__index = newcclosure(function(self, key)
+                if tostring(key):lower() == "teleport" then
+                    return function() warn("[KKGZ] Teleport blocked") end
+                end
+                return oldIndex(self, key)
+            end)
+            
+            setreadonly(mt, true)
         end
-        return false
-    end)
-    
-    if success then
-        return result
+        
+        -- Randomize wait timing
+        local oldWait = wait
+        wait = function(t)
+            return oldWait(t + math.random(-20, 20) / 1000)
+        end
+        
+        print("[KKGZ] Anti-ban protection activated")
     end
     
-    -- METHOD 5: Default - treat all as enemies if no team system detected
-    return true
+    -- Execute anti-ban
+    pcall(AntiBan)
 end
 
 -- Configuration
 local Config = {
-    -- ESP Settings
-    ESP = true,
+    -- ESP
     BoxESP = true,
     NameESP = true,
     HealthESP = true,
     DistanceESP = true,
     Tracers = true,
-    HeadDot = true,
-    Chams = false,
+    Wallhack = true, -- See through walls
     
-    -- Aimbot Settings - FIXED FOR SNIPERS
+    -- Aimbot
     Aimbot = true,
     AimKey = "MouseButton2",
     AimPart = "Head",
-    Smoothing = 0.25, -- Increased for smoother aim
-    FOV = 150,
+    Smoothing = 0.3,
+    FOV = 250,
     ShowFOV = true,
-    Prediction = 0.15,
-    AutoShoot = false,
-    Triggerbot = false,
-    TriggerDelay = 0.1,
+    SilentAim = false,
+    Aimlock = false,
     
-    -- Visual Settings
-    BoxColor = Color3.fromRGB(255, 50, 50),
+    -- Speed & Movement
+    Speed = false,
+    SpeedAmount = 32,
+    Fly = false,
+    FlySpeed = 50,
+    JumpPower = false,
+    JumpPowerAmount = 100,
+    NoClip = false,
+    
+    -- Combat
+    AutoKill = false,
+    KillAll = false,
+    KillRange = 50,
+    OneHitKill = false,
+    InfiniteAmmo = false,
+    NoCooldown = false,
+    
+    -- Visual
+    BoxColor = Color3.fromRGB(255, 0, 0),
     NameColor = Color3.fromRGB(255, 255, 255),
     TracerColor = Color3.fromRGB(255, 100, 0),
-    HeadDotColor = Color3.fromRGB(255, 0, 0),
-    FOVColor = Color3.fromRGB(255, 255, 255),
+    WallhackColor = Color3.fromRGB(0, 255, 255),
     
-    -- UI Settings
+    -- Server
+    ServerHop = false,
+    Rejoin = false,
+    CrashServer = false,
+    SpamChat = false,
+    ChatMessage = "KKGZ OWNED THIS SERVER",
+    
+    -- UI
     MenuOpen = true,
-    Watermark = true,
-    MenuKey = Enum.KeyCode.RightShift,
-    UnloadKey = Enum.KeyCode.Delete,
+    Watermark = true
 }
 
--- FIXED DRAWING CACHE - PERSISTENT
-local ESPCache = {}
-local FOVCircle = nil
-local TargetCache = {
-    Current = nil,
-    LastUpdate = 0,
-    Position = nil
-}
-
--- Initialize Drawings
-local function InitDrawings()
-    -- FOV Circle
-    if not FOVCircle then
-        FOVCircle = Drawing.new("Circle")
-        FOVCircle.Visible = Config.ShowFOV
-        FOVCircle.Color = Config.FOVColor
-        FOVCircle.Thickness = 1.5
-        FOVCircle.NumSides = 64
-        FOVCircle.Filled = false
-        FOVCircle.Radius = Config.FOV
-        FOVCircle.Transparency = 0.7
-    end
-end
-
--- FIXED ESP CREATION - PERSISTENT
-local function CreateESP(player)
-    if player == LocalPlayer then return end
-    
-    -- Remove old ESP if exists
-    if ESPCache[player] then
-        for _, drawing in pairs(ESPCache[player]) do
-            pcall(function() drawing:Remove() end)
-        end
-        ESPCache[player] = nil
-    end
-    
-    -- Create new ESP objects
-    local esp = {
-        Box = Drawing.new("Square"),
-        BoxOutline = Drawing.new("Square"),
-        Name = Drawing.new("Text"),
-        Health = Drawing.new("Text"),
-        Distance = Drawing.new("Text"),
-        Tracer = Drawing.new("Line"),
-        HeadDot = Drawing.new("Circle")
+-- Drawing Library
+local DrawingLib = {
+    Fonts = {
+        UI = 2,
+        ESP = 1
     }
-    
-    -- Configure Box
-    esp.Box.Thickness = 1.5
-    esp.Box.Color = Config.BoxColor
-    esp.Box.Filled = false
-    esp.Box.Visible = false
-    
-    -- Configure Box Outline
-    esp.BoxOutline.Thickness = 2.5
-    esp.BoxOutline.Color = Color3.new(0, 0, 0)
-    esp.BoxOutline.Filled = false
-    esp.BoxOutline.Visible = false
-    esp.BoxOutline.Transparency = 0.3
-    
-    -- Configure Name
-    esp.Name.Size = 14
-    esp.Name.Font = 2
-    esp.Name.Color = Config.NameColor
-    esp.Name.Center = true
-    esp.Name.Outline = true
-    esp.Name.OutlineColor = Color3.new(0, 0, 0)
-    esp.Name.Visible = false
-    
-    -- Configure Health
-    esp.Health.Size = 12
-    esp.Health.Font = 2
-    esp.Health.Center = true
-    esp.Health.Outline = true
-    esp.Health.OutlineColor = Color3.new(0, 0, 0)
-    esp.Health.Visible = false
-    
-    -- Configure Distance
-    esp.Distance.Size = 12
-    esp.Distance.Font = 2
-    esp.Distance.Center = true
-    esp.Distance.Outline = true
-    esp.Distance.OutlineColor = Color3.new(0, 0, 0)
-    esp.Distance.Visible = false
-    
-    -- Configure Tracer
-    esp.Tracer.Thickness = 1.5
-    esp.Tracer.Color = Config.TracerColor
-    esp.Tracer.Visible = false
-    
-    -- Configure Head Dot
-    esp.HeadDot.Radius = 4
-    esp.HeadDot.Filled = true
-    esp.HeadDot.Color = Config.HeadDotColor
-    esp.HeadDot.NumSides = 32
-    esp.HeadDot.Visible = false
-    
-    ESPCache[player] = esp
-end
+}
 
--- FIXED ESP UPDATE
-local function UpdateESP()
-    if not Config.ESP then
-        for _, esp in pairs(ESPCache) do
-            for _, drawing in pairs(esp) do
-                drawing.Visible = false
-            end
-        end
-        return
-    end
-    
-    for player, esp in pairs(ESPCache) do
-        if not player or not player.Parent then
-            if ESPCache[player] then
-                for _, drawing in pairs(ESPCache[player]) do
-                    pcall(function() drawing:Remove() end)
-                end
-                ESPCache[player] = nil
-            end
-            continue
-        end
-        
-        local character = player.Character
-        if not character then
-            for _, drawing in pairs(esp) do
-                drawing.Visible = false
-            end
-            continue
-        end
-        
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-        local head = character:FindFirstChild("Head") or character:FindFirstChild("HeadHitbox")
-        
-        if not humanoid or not rootPart or not head or humanoid.Health <= 0 then
-            for _, drawing in pairs(esp) do
-                drawing.Visible = false
-            end
-            continue
-        end
-        
-        -- FIXED TEAM CHECK - NOW WORKING
-        local isEnemy = IsEnemy(player)
-        if not isEnemy and Config.TeamCheck then
-            for _, drawing in pairs(esp) do
-                drawing.Visible = false
-            end
-            continue
-        end
-        
-        local vector, onScreen = Camera:WorldToViewportPoint(head.Position)
-        
-        if onScreen then
-            -- Calculate box size
-            local headVec = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-            local legVec = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
-            local height = math.abs(legVec.Y - headVec.Y)
-            local width = height * 0.6
-            
-            -- Box ESP
-            if Config.BoxESP then
-                esp.Box.Size = Vector2.new(width, height)
-                esp.Box.Position = Vector2.new(vector.X - width/2, headVec.Y)
-                esp.Box.Color = isEnemy and Config.BoxColor or Color3.fromRGB(0, 255, 0)
-                esp.Box.Visible = true
-                
-                esp.BoxOutline.Size = Vector2.new(width + 2, height + 2)
-                esp.BoxOutline.Position = Vector2.new(vector.X - width/2 - 1, headVec.Y - 1)
-                esp.BoxOutline.Visible = true
-            else
-                esp.Box.Visible = false
-                esp.BoxOutline.Visible = false
-            end
-            
-            -- Name ESP
-            if Config.NameESP then
-                esp.Name.Text = player.Name .. (isEnemy and " [ENEMY]" or " [FRIEND]")
-                esp.Name.Position = Vector2.new(vector.X, headVec.Y - 25)
-                esp.Name.Color = isEnemy and Config.NameColor or Color3.fromRGB(0, 255, 0)
-                esp.Name.Visible = true
-            else
-                esp.Name.Visible = false
-            end
-            
-            -- Health ESP
-            if Config.HealthESP then
-                local healthPercent = humanoid.Health / humanoid.MaxHealth
-                esp.Health.Text = math.floor(humanoid.Health) .. " HP"
-                esp.Health.Position = Vector2.new(vector.X, headVec.Y - 10)
-                esp.Health.Color = Color3.new(1 - healthPercent, healthPercent, 0)
-                esp.Health.Visible = true
-            else
-                esp.Health.Visible = false
-            end
-            
-            -- Distance ESP
-            if Config.DistanceESP then
-                local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
-                esp.Distance.Text = math.floor(distance) .. "m"
-                esp.Distance.Position = Vector2.new(vector.X, legVec.Y + 15)
-                esp.Distance.Visible = true
-            else
-                esp.Distance.Visible = false
-            end
-            
-            -- Tracers
-            if Config.Tracers then
-                local startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                esp.Tracer.From = startPos
-                esp.Tracer.To = Vector2.new(vector.X, vector.Y)
-                esp.Tracer.Color = isEnemy and Config.TracerColor or Color3.fromRGB(0, 255, 0)
-                esp.Tracer.Visible = true
-            else
-                esp.Tracer.Visible = false
-            end
-            
-            -- Head Dot
-            if Config.HeadDot then
-                esp.HeadDot.Position = Vector2.new(vector.X, vector.Y)
-                esp.HeadDot.Visible = true
-            else
-                esp.HeadDot.Visible = false
-            end
-        else
-            for _, drawing in pairs(esp) do
-                drawing.Visible = false
-            end
-        end
-    end
-end
+-- Drawing Cache
+local ESP_Cache = {}
+local FOV_Circle = nil
+local Watermark = nil
 
--- FIXED AIMBOT - GET CLOSEST TARGET
-local function GetClosestTarget()
-    if not Config.Aimbot then return nil end
-    
-    local closest = nil
-    local closestDist = Config.FOV
-    local mousePos = UserInputService:GetMouseLocation()
-    
-    for _, player in pairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        if not IsEnemy(player) then continue end
-        
-        local character = player.Character
-        if not character then continue end
-        
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if not humanoid or humanoid.Health <= 0 then continue end
-        
-        local aimPart = character:FindFirstChild(Config.AimPart) or character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
-        if not aimPart then continue end
-        
-        local vector, onScreen = Camera:WorldToViewportPoint(aimPart.Position)
-        if not onScreen then continue end
-        
-        local screenPos = Vector2.new(vector.X, vector.Y)
-        local dist = (mousePos - screenPos).Magnitude
-        
-        if dist < closestDist then
-            closestDist = dist
-            closest = player
-        end
-    end
-    
-    return closest
-end
+-- Speed variables
+local speedConnection = nil
+local flyConnection = nil
+local flyBodyVelocity = nil
+local flyBodyGyro = nil
 
--- FIXED AIMBOT - AIM AT TARGET
-local function AimAtTarget(target)
-    if not target or not target.Character then return end
-    
-    local character = target.Character
-    local aimPart = character:FindFirstChild(Config.AimPart) or character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
-    if not aimPart then return end
-    
-    -- Prediction
-    local targetPos = aimPart.Position
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    
-    if rootPart and Config.Prediction > 0 then
-        local velocity = rootPart.Velocity
-        local distance = (Camera.CFrame.Position - targetPos).Magnitude
-        local bulletVelocity = 2000 -- Standard bullet speed
-        local travelTime = distance / bulletVelocity
-        targetPos = targetPos + (velocity * travelTime * Config.Prediction)
-    end
-    
-    -- Smooth aim
-    local cameraPos = Camera.CFrame.Position
-    local direction = (targetPos - cameraPos).Unit
-    
-    -- Check if scoped for snipers
-    local isScoped = false
-    local lpChar = LocalPlayer.Character
-    if lpChar then
-        local tool = lpChar:FindFirstChildOfClass("Tool")
-        if tool and (tool:FindFirstChild("Scope") or tool:FindFirstChild("Sight")) then
-            isScoped = true
-        end
-    end
-    
-    -- Adjust smoothing for snipers
-    local smoothFactor = isScoped and 0.15 or Config.Smoothing
-    local currentLook = Camera.CFrame.LookVector
-    local newLook = currentLook:Lerp(direction, 1 - smoothFactor)
-    
-    Camera.CFrame = CFrame.new(cameraPos, cameraPos + newLook)
-    
-    -- Auto shoot
-    if Config.AutoShoot then
-        local tool = lpChar and lpChar:FindFirstChildOfClass("Tool")
-        if tool then
-            tool:Activate()
-        end
-    end
-    
-    TargetCache.Current = target
-    TargetCache.LastUpdate = tick()
-end
-
--- FIXED TRIGGER BOT
-local function CheckTrigger()
-    if not Config.Triggerbot then return end
-    
-    local mousePos = UserInputService:GetMouseLocation()
-    local ray = Camera:ScreenPointToRay(mousePos.X, mousePos.Y)
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-    params.FilterType = Enum.RaycastFilterType.Blacklist
-    
-    local result = Workspace:Raycast(ray.Origin, ray.Direction * 1000, params)
-    
-    if result and result.Instance then
-        local hitPlayer = Players:GetPlayerFromCharacter(result.Instance.Parent)
-        if hitPlayer and IsEnemy(hitPlayer) then
-            local lpChar = LocalPlayer.Character
-            if lpChar then
-                local tool = lpChar:FindFirstChildOfClass("Tool")
-                if tool then
-                    tool:Activate()
-                    task.wait(Config.TriggerDelay)
-                end
-            end
-        end
-    end
-end
-
--- UI SYSTEM - COMPLETELY REWRITTEN
+-- UI Setup with better design
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KKGZ_" .. HttpService:GenerateGUID(false):sub(1, 6)
+ScreenGui.Name = "KKGZ_Menu_" .. HttpService:GenerateGUID(false)
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = CoreGui
 
--- Main Frame
+if pcall(function() ScreenGui.Parent = CoreGui end) then
+else
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Modern Menu Frame
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 380, 0, 480)
-MainFrame.Position = UDim2.new(0.5, -190, 0.5, -240)
-MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 400, 0, 600) -- Larger for more options
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -300)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -467,211 +158,173 @@ MainFrame.Draggable = true
 MainFrame.Visible = Config.MenuOpen
 MainFrame.Parent = ScreenGui
 
--- UI Corners
+-- Background Blur
 local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.CornerRadius = UDim.new(0, 8)
 UICorner.Parent = MainFrame
 
 local UIStroke = Instance.new("UIStroke")
 UIStroke.Color = Color3.fromRGB(255, 0, 0)
 UIStroke.Thickness = 2
-UIStroke.Transparency = 0.7
 UIStroke.Parent = MainFrame
 
 -- Title Bar
 local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 45)
-TitleBar.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-TitleBar.BackgroundTransparency = 0.2
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = MainFrame
 
 local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.CornerRadius = UDim.new(0, 8)
 TitleCorner.Parent = TitleBar
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -50, 1, 0)
-Title.Position = UDim2.new(0, 15, 0, 0)
+Title.Size = UDim2.new(1, 0, 1, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "🎯 KKGZ ULTIMATE - TEAM CHECK FIXED"
+Title.Text = "KKGZ MENU - ULTIMATE"
 Title.TextColor3 = Color3.new(1, 1, 1)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 16
-Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 20
+Title.TextStrokeTransparency = 0
 Title.Parent = TitleBar
 
 -- Close Button
 local CloseButton = Instance.new("TextButton")
-CloseButton.Size = UDim2.new(0, 35, 0, 35)
-CloseButton.Position = UDim2.new(1, -45, 0, 5)
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-CloseButton.Text = "✕"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+CloseButton.Text = "X"
 CloseButton.TextColor3 = Color3.new(1, 1, 1)
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.TextSize = 20
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.TextSize = 16
 CloseButton.Parent = TitleBar
 
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 8)
-CloseCorner.Parent = CloseButton
-
 CloseButton.MouseButton1Click:Connect(function()
-    Config.MenuOpen = false
     MainFrame.Visible = false
+    Config.MenuOpen = false
 end)
 
--- Tab System
-local TabFrame = Instance.new("Frame")
-TabFrame.Size = UDim2.new(1, -20, 0, 40)
-TabFrame.Position = UDim2.new(0, 10, 0, 55)
-TabFrame.BackgroundTransparency = 1
-TabFrame.Parent = MainFrame
+-- Tabs System
+local Tabs = {"ESP", "Aimbot", "Movement", "Combat", "Server", "Settings"}
+local CurrentTab = "ESP"
 
-local Tabs = {"AIMBOT", "ESP", "SETTINGS"}
-local CurrentTab = "AIMBOT"
 local TabButtons = {}
-local TabContents = {}
+local TabFrames = {}
 
+-- Function to create tabs
+local function CreateTab(name, position)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 75, 0, 30)
+    button.Position = UDim2.new(0, 5 + (position * 80), 0, 50)
+    button.BackgroundColor3 = (name == CurrentTab) and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(40, 40, 40)
+    button.Text = name
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Font = Enum.Font.SourceSansSemibold
+    button.TextSize = 14
+    button.Parent = MainFrame
+    
+    local frame = Instance.new("ScrollingFrame")
+    frame.Size = UDim2.new(1, -20, 1, -100)
+    frame.Position = UDim2.new(0, 10, 0, 90)
+    frame.BackgroundTransparency = 1
+    frame.ScrollBarThickness = 2
+    frame.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
+    frame.Visible = (name == CurrentTab)
+    frame.Parent = MainFrame
+    frame.CanvasSize = UDim2.new(0, 0, 2, 0) -- Extra space for scrolling
+    
+    TabButtons[name] = button
+    TabFrames[name] = frame
+    
+    button.MouseButton1Click:Connect(function()
+        CurrentTab = name
+        for tabName, tabFrame in pairs(TabFrames) do
+            tabFrame.Visible = (tabName == name)
+            TabButtons[tabName].BackgroundColor3 = (tabName == name) and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(40, 40, 40)
+        end
+    end)
+    
+    return frame
+end
+
+-- Create all tabs
 for i, tabName in ipairs(Tabs) do
-    -- Tab Button
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 110, 0, 35)
-    btn.Position = UDim2.new(0, (i-1) * 120, 0, 0)
-    btn.BackgroundColor3 = CurrentTab == tabName and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(30, 30, 40)
-    btn.BackgroundTransparency = CurrentTab == tabName and 0 or 0.3
-    btn.Text = tabName
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.Font = Enum.Font.GothamSemibold
-    btn.TextSize = 14
-    btn.Parent = TabFrame
-    
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 8)
-    btnCorner.Parent = btn
-    
-    -- Tab Content
-    local content = Instance.new("ScrollingFrame")
-    content.Size = UDim2.new(1, -20, 1, -120)
-    content.Position = UDim2.new(0, 10, 0, 100)
-    content.BackgroundTransparency = 1
-    content.ScrollBarThickness = 3
-    content.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
-    content.Visible = CurrentTab == tabName
-    content.Parent = MainFrame
-    
-    TabButtons[tabName] = btn
-    TabContents[tabName] = content
-    
-    btn.MouseButton1Click:Connect(function()
-        CurrentTab = tabName
-        for name, button in pairs(TabButtons) do
-            button.BackgroundColor3 = name == tabName and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(30, 30, 40)
-            button.BackgroundTransparency = name == tabName and 0 or 0.3
-        end
-        for name, frame in pairs(TabContents) do
-            frame.Visible = name == tabName
-        end
-    end)
+    CreateTab(tabName, i-1)
 end
 
--- Helper function to create toggles
-local function CreateToggle(parent, text, setting, y)
+-- Create toggle function
+local YPosition = 0
+local function CreateToggle(parent, text, configKey, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 40)
-    frame.Position = UDim2.new(0, 5, 0, y)
+    frame.Size = UDim2.new(1, 0, 0, 35)
+    frame.Position = UDim2.new(0, 0, 0, YPosition)
     frame.BackgroundTransparency = 1
     frame.Parent = parent
     
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 1, 0)
-    btn.BackgroundColor3 = Config[setting] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
-    btn.BackgroundTransparency = 0.2
-    btn.Text = ""
-    btn.Parent = frame
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundColor3 = Config[configKey] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
+    button.Text = "  " .. text .. ": " .. (Config[configKey] and "ON" or "OFF")
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Font = Enum.Font.SourceSans
+    button.TextSize = 14
+    button.TextXAlignment = Enum.TextXAlignment.Left
+    button.Parent = frame
     
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    btnCorner.Parent = btn
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = button
     
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -50, 1, 0)
-    label.Position = UDim2.new(0, 10, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = btn
-    
-    local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(0, 40, 1, 0)
-    status.Position = UDim2.new(1, -45, 0, 0)
-    status.BackgroundTransparency = 1
-    status.Text = Config[setting] and "ON" or "OFF"
-    status.TextColor3 = Config[setting] and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-    status.Font = Enum.Font.GothamBold
-    status.TextSize = 14
-    status.Parent = btn
-    
-    btn.MouseButton1Click:Connect(function()
-        Config[setting] = not Config[setting]
-        btn.BackgroundColor3 = Config[setting] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
-        status.Text = Config[setting] and "ON" or "OFF"
-        status.TextColor3 = Config[setting] and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    button.MouseButton1Click:Connect(function()
+        Config[configKey] = not Config[configKey]
+        button.Text = "  " .. text .. ": " .. (Config[configKey] and "ON" or "OFF")
+        button.BackgroundColor3 = Config[configKey] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
+        
+        if callback then
+            callback(Config[configKey])
+        end
     end)
     
-    return y + 45
+    YPosition = YPosition + 40
 end
 
--- Helper function to create sliders
-local function CreateSlider(parent, text, setting, min, max, format, y)
+-- Create slider function
+local function CreateSlider(parent, text, configKey, min, max, isFloat)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 50)
-    frame.Position = UDim2.new(0, 5, 0, y)
+    frame.Size = UDim2.new(1, 0, 0, 50)
+    frame.Position = UDim2.new(0, 0, 0, YPosition)
     frame.BackgroundTransparency = 1
     frame.Parent = parent
     
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -60, 0, 20)
+    label.Size = UDim2.new(1, 0, 0, 20)
     label.BackgroundTransparency = 1
-    label.Text = text
+    label.Text = text .. ": " .. Config[configKey]
     label.TextColor3 = Color3.new(1, 1, 1)
-    label.Font = Enum.Font.Gotham
+    label.Font = Enum.Font.SourceSans
     label.TextSize = 14
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
     
-    local valueLabel = Instance.new("TextLabel")
-    valueLabel.Size = UDim2.new(0, 50, 0, 20)
-    valueLabel.Position = UDim2.new(1, -55, 0, 0)
-    valueLabel.BackgroundTransparency = 1
-    valueLabel.Text = tostring(Config[setting])
-    valueLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-    valueLabel.Font = Enum.Font.GothamBold
-    valueLabel.TextSize = 14
-    valueLabel.Parent = frame
-    
     local slider = Instance.new("Frame")
-    slider.Size = UDim2.new(1, 0, 0, 4)
-    slider.Position = UDim2.new(0, 0, 0, 30)
-    slider.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    slider.BorderSizePixel = 0
+    slider.Size = UDim2.new(1, 0, 0, 20)
+    slider.Position = UDim2.new(0, 0, 0, 25)
+    slider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     slider.Parent = frame
     
     local sliderCorner = Instance.new("UICorner")
-    sliderCorner.CornerRadius = UDim.new(0, 2)
+    sliderCorner.CornerRadius = UDim.new(0, 4)
     sliderCorner.Parent = slider
     
     local fill = Instance.new("Frame")
-    fill.Size = UDim2.new((Config[setting] - min) / (max - min), 0, 1, 0)
+    fill.Size = UDim2.new((Config[configKey] - min) / (max - min), 0, 1, 0)
     fill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     fill.BorderSizePixel = 0
     fill.Parent = slider
     
     local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(0, 2)
+    fillCorner.CornerRadius = UDim.new(0, 4)
     fillCorner.Parent = fill
     
     local dragging = false
@@ -681,192 +334,812 @@ local function CreateSlider(parent, text, setting, min, max, format, y)
         end
     end)
     
-    UserInputService.InputEnded:Connect(function(input)
+    slider.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
         end
     end)
     
-    UserInputService.InputChanged:Connect(function(input)
+    slider.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local relative = math.clamp((input.Position.X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, 0, 1)
-            local value = min + (max - min) * relative
-            if format == "int" then
+            local relativeX = input.Position.X - slider.AbsolutePosition.X
+            local percentage = math.clamp(relativeX / slider.AbsoluteSize.X, 0, 1)
+            local value = min + (max - min) * percentage
+            if not isFloat then
                 value = math.floor(value)
             else
-                value = math.floor(value * 100) / 100
+                value = math.floor(value * 10) / 10
             end
-            Config[setting] = value
-            valueLabel.Text = tostring(value)
-            fill.Size = UDim2.new(relative, 0, 1, 0)
+            Config[configKey] = value
+            label.Text = text .. ": " .. value
+            fill.Size = UDim2.new(percentage, 0, 1, 0)
         end
     end)
     
-    return y + 60
+    YPosition = YPosition + 55
 end
 
--- Populate AIMBOT Tab
-local y = 10
-y = CreateToggle(TabContents["AIMBOT"], "Enable Aimbot", "Aimbot", y)
-y = CreateToggle(TabContents["AIMBOT"], "Show FOV", "ShowFOV", y)
-y = CreateToggle(TabContents["AIMBOT"], "Auto Shoot", "AutoShoot", y)
-y = CreateToggle(TabContents["AIMBOT"], "Triggerbot", "Triggerbot", y)
-y = CreateSlider(TabContents["AIMBOT"], "Smoothing", "Smoothing", 0, 0.5, "float", y)
-y = CreateSlider(TabContents["AIMBOT"], "FOV Size", "FOV", 50, 500, "int", y)
-y = CreateSlider(TabContents["AIMBOT"], "Prediction", "Prediction", 0, 0.5, "float", y)
-
--- Populate ESP Tab
-y = 10
-y = CreateToggle(TabContents["ESP"], "Enable ESP", "ESP", y)
-y = CreateToggle(TabContents["ESP"], "Box ESP", "BoxESP", y)
-y = CreateToggle(TabContents["ESP"], "Name ESP", "NameESP", y)
-y = CreateToggle(TabContents["ESP"], "Health ESP", "HealthESP", y)
-y = CreateToggle(TabContents["ESP"], "Distance ESP", "DistanceESP", y)
-y = CreateToggle(TabContents["ESP"], "Tracers", "Tracers", y)
-y = CreateToggle(TabContents["ESP"], "Head Dot", "HeadDot", y)
-
--- Populate SETTINGS Tab
-y = 10
-y = CreateToggle(TabContents["SETTINGS"], "Watermark", "Watermark", y)
-CreateToggle(TabContents["SETTINGS"], "Team Check", "TeamCheck", y)
-
--- Watermark
-local WatermarkFrame = Instance.new("Frame")
-WatermarkFrame.Size = UDim2.new(0, 250, 0, 35)
-WatermarkFrame.Position = UDim2.new(0, 10, 0, 10)
-WatermarkFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-WatermarkFrame.BackgroundTransparency = 0.3
-WatermarkFrame.Parent = ScreenGui
-
-local WatermarkCorner = Instance.new("UICorner")
-WatermarkCorner.CornerRadius = UDim.new(0, 6)
-WatermarkCorner.Parent = WatermarkFrame
-
-local WatermarkText = Instance.new("TextLabel")
-WatermarkText.Size = UDim2.new(1, -10, 1, 0)
-WatermarkText.Position = UDim2.new(0, 10, 0, 0)
-WatermarkText.BackgroundTransparency = 1
-WatermarkText.Text = "KKGZ ULTIMATE | TEAM CHECK ✓ | AIMBOT ✓ | ESP ✓"
-WatermarkText.TextColor3 = Color3.fromRGB(255, 100, 100)
-WatermarkText.Font = Enum.Font.GothamBold
-WatermarkText.TextSize = 13
-WatermarkText.TextXAlignment = Enum.TextXAlignment.Left
-WatermarkText.Parent = WatermarkFrame
-
--- FPS Counter
-local FPS = 60
-local FrameCount = 0
-local TimePassed = 0
-
-RunService.RenderStepped:Connect(function(delta)
-    FrameCount = FrameCount + 1
-    TimePassed = TimePassed + delta
+-- Create dropdown function
+local function CreateDropdown(parent, text, configKey, options)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 40)
+    frame.Position = UDim2.new(0, 0, 0, YPosition)
+    frame.BackgroundTransparency = 1
+    frame.Parent = parent
     
-    if TimePassed >= 1 then
-        FPS = FrameCount
-        FrameCount = 0
-        TimePassed = 0
-    end
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
     
-    if WatermarkText and Config.Watermark then
-        WatermarkText.Text = "KKGZ ULTIMATE | FPS: " .. FPS .. " | TEAM CHECK ✓ | AIMBOT " .. (Config.Aimbot and "✓" or "✗") .. " | ESP " .. (Config.ESP and "✓" or "✗")
-        WatermarkFrame.Visible = Config.Watermark
-    end
-end)
-
--- Initialize ESP for existing players
-for _, player in pairs(Players:GetPlayers()) do
-    CreateESP(player)
-end
-
--- Event handlers
-Players.PlayerAdded:Connect(function(player)
-    task.wait(1)
-    CreateESP(player)
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    if ESPCache[player] then
-        for _, drawing in pairs(ESPCache[player]) do
-            pcall(function() drawing:Remove() end)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 0, 30)
+    button.Position = UDim2.new(0, 0, 0, 20)
+    button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    button.Text = Config[configKey]
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Font = Enum.Font.SourceSans
+    button.TextSize = 14
+    button.Parent = frame
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = button
+    
+    local dropdownOpen = false
+    button.MouseButton1Click:Connect(function()
+        dropdownOpen = not dropdownOpen
+        
+        -- Clear previous dropdown
+        for _, child in pairs(frame:GetChildren()) do
+            if child.Name == "DropdownItem" then
+                child:Destroy()
+            end
         end
-        ESPCache[player] = nil
+        
+        if dropdownOpen then
+            for i, option in ipairs(options) do
+                local item = Instance.new("TextButton")
+                item.Name = "DropdownItem"
+                item.Size = UDim2.new(1, 0, 0, 25)
+                item.Position = UDim2.new(0, 0, 0, 55 + (i * 30))
+                item.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+                item.Text = option
+                item.TextColor3 = Color3.new(1, 1, 1)
+                item.Font = Enum.Font.SourceSans
+                item.TextSize = 12
+                item.Parent = frame
+                
+                item.MouseButton1Click:Connect(function()
+                    Config[configKey] = option
+                    button.Text = option
+                    dropdownOpen = false
+                    for _, child in pairs(frame:GetChildren()) do
+                        if child.Name == "DropdownItem" then
+                            child:Destroy()
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+    
+    YPosition = YPosition + 45
+end
+
+-- Create button function
+local function CreateButton(parent, text, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 40)
+    frame.Position = UDim2.new(0, 0, 0, YPosition)
+    frame.BackgroundTransparency = 1
+    frame.Parent = parent
+    
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    button.Text = text
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Font = Enum.Font.SourceSansBold
+    button.TextSize = 14
+    button.Parent = frame
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = button
+    
+    button.MouseButton1Click:Connect(callback)
+    
+    YPosition = YPosition + 45
+end
+
+-- Populate tabs
+-- ESP Tab
+YPosition = 0
+local espTab = TabFrames["ESP"]
+CreateToggle(espTab, "Box ESP", "BoxESP")
+CreateToggle(espTab, "Name ESP", "NameESP")
+CreateToggle(espTab, "Health ESP", "HealthESP")
+CreateToggle(espTab, "Distance ESP", "DistanceESP")
+CreateToggle(espTab, "Tracers", "Tracers")
+CreateToggle(espTab, "Wallhack (See Through Walls)", "Wallhack")
+
+-- Aimbot Tab
+YPosition = 0
+local aimbotTab = TabFrames["Aimbot"]
+CreateToggle(aimbotTab, "Aimbot", "Aimbot")
+CreateToggle(aimbotTab, "Show FOV Circle", "ShowFOV")
+CreateToggle(aimbotTab, "Silent Aim", "SilentAim")
+CreateToggle(aimbotTab, "Aimlock", "Aimlock")
+CreateSlider(aimbotTab, "Aim Smoothing", "Smoothing", 0, 1, true)
+CreateSlider(aimbotTab, "FOV Size", "FOV", 50, 500)
+CreateDropdown(aimbotTab, "Aim Key", "AimKey", {"MouseButton2", "Q", "E", "LeftControl", "LeftShift"})
+CreateDropdown(aimbotTab, "Aim Part", "AimPart", {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"})
+
+-- Movement Tab
+YPosition = 0
+local moveTab = TabFrames["Movement"]
+CreateToggle(moveTab, "Speed Hack", "Speed", function(enabled)
+    if enabled then
+        enableSpeed()
+    else
+        disableSpeed()
     end
 end)
+CreateSlider(moveTab, "Speed Amount", "SpeedAmount", 16, 500)
+CreateToggle(moveTab, "Fly Hack", "Fly", function(enabled)
+    if enabled then
+        enableFly()
+    else
+        disableFly()
+    end
+end)
+CreateSlider(moveTab, "Fly Speed", "FlySpeed", 10, 200)
+CreateToggle(moveTab, "High Jump", "JumpPower", function(enabled)
+    if enabled then
+        LocalPlayer.Character.Humanoid.JumpPower = Config.JumpPowerAmount
+    else
+        LocalPlayer.Character.Humanoid.JumpPower = 50
+    end
+end)
+CreateSlider(moveTab, "Jump Power", "JumpPowerAmount", 50, 500)
+CreateToggle(moveTab, "NoClip", "NoClip")
 
--- Initialize drawings
-InitDrawings()
+-- Combat Tab
+YPosition = 0
+local combatTab = TabFrames["Combat"]
+CreateToggle(combatTab, "Auto Kill (Aimbot)", "AutoKill")
+CreateButton(combatTab, "KILL ALL PLAYERS", function()
+    killAllPlayers()
+end)
+CreateSlider(combatTab, "Kill Range", "KillRange", 10, 500)
+CreateToggle(combatTab, "One Hit Kill", "OneHitKill")
+CreateToggle(combatTab, "Infinite Ammo", "InfiniteAmmo")
+CreateToggle(combatTab, "No Cooldown", "NoCooldown")
 
--- MAIN LOOP - FIXED
+-- Server Tab
+YPosition = 0
+local serverTab = TabFrames["Server"]
+CreateButton(serverTab, "SERVER HOP", function()
+    serverHop()
+end)
+CreateButton(serverTab, "REJOIN SERVER", function()
+    rejoinServer()
+end)
+CreateButton(serverTab, "CRASH SERVER (DDOS)", function()
+    crashServer()
+end)
+CreateToggle(serverTab, "Spam Chat", "SpamChat")
+CreateDropdown(serverTab, "Chat Message", "ChatMessage", {"KKGZ OWNED THIS SERVER", "GET REKT", "SERVER CRASHED BY KKGZ", "L + RATIO + KKGZ"})
+
+-- Settings Tab
+YPosition = 0
+local settingsTab = TabFrames["Settings"]
+CreateToggle(settingsTab, "Watermark", "Watermark")
+CreateToggle(settingsTab, "Anti-Ban Protection", "AntiBan")
+CreateButton(settingsTab, "UNLOAD SCRIPT", function()
+    unloadScript()
+end)
+
+-- Speed function
+function enableSpeed()
+    if speedConnection then
+        speedConnection:Disconnect()
+    end
+    speedConnection = RunService.RenderStepped:Connect(function()
+        if Config.Speed and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+            local humanoid = LocalPlayer.Character.Humanoid
+            humanoid.WalkSpeed = Config.SpeedAmount
+        elseif speedConnection then
+            speedConnection:Disconnect()
+            speedConnection = nil
+        end
+    end)
+end
+
+function disableSpeed()
+    if speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = 16
+    end
+end
+
+-- Fly function
+function enableFly()
+    if flyConnection then
+        flyConnection:Disconnect()
+    end
+    
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not rootPart then return end
+    
+    humanoid.PlatformStand = true
+    
+    flyBodyVelocity = Instance.new("BodyVelocity")
+    flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    flyBodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+    flyBodyVelocity.Parent = rootPart
+    
+    flyBodyGyro = Instance.new("BodyGyro")
+    flyBodyGyro.MaxTorque = Vector3.new(4000, 4000, 4000)
+    flyBodyGyro.Parent = rootPart
+    
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if not Config.Fly or not LocalPlayer.Character then
+            disableFly()
+            return
+        end
+        
+        local moveDirection = Vector3.new(0, 0, 0)
+        local cameraCFrame = Camera.CFrame
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDirection = moveDirection + cameraCFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDirection = moveDirection - cameraCFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDirection = moveDirection - cameraCFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDirection = moveDirection + cameraCFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveDirection = moveDirection + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveDirection = moveDirection - Vector3.new(0, 1, 0)
+        end
+        
+        if moveDirection.Magnitude > 0 then
+            moveDirection = moveDirection.Unit * Config.FlySpeed
+        end
+        
+        flyBodyVelocity.Velocity = moveDirection
+        flyBodyGyro.CFrame = cameraCFrame
+    end)
+end
+
+function disableFly()
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    if flyBodyVelocity then
+        flyBodyVelocity:Destroy()
+        flyBodyVelocity = nil
+    end
+    if flyBodyGyro then
+        flyBodyGyro:Destroy()
+        flyBodyGyro = nil
+    end
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        LocalPlayer.Character.Humanoid.PlatformStand = false
+    end
+end
+
+-- Kill All Players function
+function killAllPlayers()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                humanoid.Health = 0
+            end
+        end
+    end
+    print("[KKGZ] Killed all players")
+end
+
+-- Server Hop function
+function serverHop()
+    local x = {}
+    for _, v in ipairs(Players:GetPlayers()) do
+        table.insert(x, v.Name)
+    end
+    local placeId = game.PlaceId
+    TeleportService:Teleport(placeId, LocalPlayer)
+end
+
+-- Rejoin Server function
+function rejoinServer()
+    local placeId = game.PlaceId
+    local jobId = game.JobId
+    TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
+end
+
+-- Crash Server function
+function crashServer()
+    -- Method 1: Create many parts
+    for i = 1, 1000 do
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(1000, 1000, 1000)
+        part.Position = Vector3.new(math.random(-10000, 10000), math.random(-10000, 10000), math.random(-10000, 10000))
+        part.Anchored = true
+        part.Parent = Workspace
+    end
+    
+    -- Method 2: Spam remote events
+    for i = 1, 500 do
+        local remote = Instance.new("RemoteEvent")
+        remote.Name = "CrashRemote_" .. i
+        remote.Parent = ReplicatedStorage
+        remote:FireServer("CRASH")
+    end
+    
+    -- Method 3: Infinite loop
+    while true do
+        local part = Instance.new("Part")
+        part.Parent = Workspace
+        task.wait()
+    end
+    
+    print("[KKGZ] Server crash initiated")
+end
+
+-- Unload Script function
+function unloadScript()
+    -- Disable all features
+    Config.Speed = false
+    disableSpeed()
+    Config.Fly = false
+    disableFly()
+    
+    -- Clean up GUI
+    ScreenGui:Destroy()
+    
+    -- Remove drawings
+    if Watermark then Watermark:Remove() end
+    if FOV_Circle then FOV_Circle:Remove() end
+    for _, objects in pairs(ESP_Cache) do
+        for _, drawing in pairs(objects) do
+            drawing:Remove()
+        end
+    end
+    ESP_Cache = {}
+    
+    print("[KKGZ] Script unloaded")
+end
+
+-- Create FOV Circle
+local function CreateFOVCircle()
+    if FOV_Circle then FOV_Circle:Remove() end
+    
+    FOV_Circle = Drawing.new("Circle")
+    FOV_Circle.Visible = Config.ShowFOV
+    FOV_Circle.Color = Color3.new(1, 1, 1)
+    FOV_Circle.Thickness = 1
+    FOV_Circle.NumSides = 64
+    FOV_Circle.Filled = false
+    FOV_Circle.Radius = Config.FOV
+    FOV_Circle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+end
+
+-- ESP Functions
+local function CreateDrawing(type, properties)
+    local drawing = Drawing.new(type)
+    for k, v in pairs(properties) do
+        drawing[k] = v
+    end
+    return drawing
+end
+
+local function AddESP(player)
+    if player == LocalPlayer then return end
+    
+    local Objects = {
+        Box = CreateDrawing("Square", {
+            Thickness = 1,
+            Color = Config.BoxColor,
+            Filled = false,
+            Visible = false
+        }),
+        Name = CreateDrawing("Text", {
+            Text = player.Name,
+            Color = Config.NameColor,
+            Center = true,
+            Outline = true,
+            Visible = false,
+            Size = 14
+        }),
+        Health = CreateDrawing("Text", {
+            Text = "100 HP",
+            Color = Color3.new(0, 1, 0),
+            Center = true,
+            Outline = true,
+            Visible = false,
+            Size = 12
+        }),
+        Distance = CreateDrawing("Text", {
+            Text = "0m",
+            Color = Color3.new(1, 1, 0),
+            Center = true,
+            Outline = true,
+            Visible = false,
+            Size = 12
+        }),
+        Tracer = CreateDrawing("Line", {
+            Thickness = 1,
+            Color = Config.TracerColor,
+            Visible = false
+        })
+    }
+    
+    ESP_Cache[player] = Objects
+end
+
+local function RemoveESP(player)
+    if ESP_Cache[player] then
+        for _, drawing in pairs(ESP_Cache[player]) do
+            drawing:Remove()
+        end
+        ESP_Cache[player] = nil
+    end
+end
+
+-- Aimbot Functions
+local function GetClosestTarget()
+    local closest = nil
+    local closestDistance = Config.FOV
+    local mousePos = UserInputService:GetMouseLocation()
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            local aimPart = player.Character:FindFirstChild(Config.AimPart) or player.Character:FindFirstChild("Head")
+            
+            if humanoid and humanoid.Health > 0 and aimPart then
+                local screenPoint, onScreen = Camera:WorldToViewportPoint(aimPart.Position)
+                
+                if onScreen then
+                    local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
+                    
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        closest = player
+                    end
+                end
+            end
+        end
+    end
+    
+    return closest
+end
+
+local function AimAtTarget(target)
+    if not target or not target.Character then return end
+    
+    local aimPart = target.Character:FindFirstChild(Config.AimPart) or target.Character:FindFirstChild("Head")
+    if not aimPart then return end
+    
+    -- Auto kill if enabled
+    if Config.AutoKill and target.Character then
+        local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Health > 0 then
+            humanoid.Health = 0
+        end
+    end
+    
+    -- Calculate aim direction
+    local cameraCFrame = Camera.CFrame
+    local targetPosition = aimPart.Position + Vector3.new(0, 0.2, 0) -- Small offset for head
+    
+    -- Smooth aiming
+    local currentLook = cameraCFrame.LookVector
+    local desiredLook = (targetPosition - cameraCFrame.Position).Unit
+    local smoothedLook = currentLook:Lerp(desiredLook, 1 - Config.Smoothing)
+    
+    -- Apply aim
+    Camera.CFrame = CFrame.lookAt(cameraCFrame.Position, cameraCFrame.Position + smoothedLook)
+end
+
+-- Check if aim key is pressed
+local function IsAimKeyPressed()
+    if Config.AimKey == "MouseButton2" then
+        return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+    elseif Config.AimKey == "Q" then
+        return UserInputService:IsKeyDown(Enum.KeyCode.Q)
+    elseif Config.AimKey == "E" then
+        return UserInputService:IsKeyDown(Enum.KeyCode.E)
+    elseif Config.AimKey == "LeftControl" then
+        return UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+    elseif Config.AimKey == "LeftShift" then
+        return UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+    end
+    return false
+end
+
+-- NoClip function
+local function handleNoClip()
+    if not Config.NoClip then return end
+    
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+end
+
+-- Infinite Ammo function
+local function handleInfiniteAmmo()
+    if not Config.InfiniteAmmo then return end
+    
+    -- This depends on the game's weapon system
+    -- Generic approach: look for ammo values in tools
+    for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            local ammo = tool:FindFirstChild("Ammo")
+            if ammo and ammo:IsA("NumberValue") then
+                ammo.Value = 9999
+            end
+        end
+    end
+end
+
+-- No Cooldown function
+local function handleNoCooldown()
+    if not Config.NoCooldown then return end
+    
+    -- This depends on the game's cooldown system
+    -- Generic approach: look for cooldown values in player scripts
+end
+
+-- Spam Chat function
+local function spamChat()
+    if not Config.SpamChat then return end
+    
+    local chatService = game:GetService("Chat")
+    for i = 1, 10 do
+        chatService:Chat(LocalPlayer.Character.Head, Config.ChatMessage, Enum.ChatColor.Red)
+        wait(0.1)
+    end
+end
+
+-- Main Update Loop
 RunService.RenderStepped:Connect(function()
     -- Update FOV Circle
-    if FOVCircle then
-        FOVCircle.Visible = Config.ShowFOV and Config.Aimbot
-        FOVCircle.Radius = Config.FOV
-        FOVCircle.Position = UserInputService:GetMouseLocation()
-        FOVCircle.Color = Config.FOVColor
+    if FOV_Circle then
+        FOV_Circle.Visible = Config.ShowFOV
+        FOV_Circle.Radius = Config.FOV
+        FOV_Circle.Position = UserInputService:GetMouseLocation()
     end
     
-    -- Update ESP
-    UpdateESP()
+    -- Update Watermark
+    if Watermark then
+        Watermark.Visible = Config.Watermark
+    end
     
-    -- Check aim key
-    local aimPressed = false
-    if Config.AimKey == "MouseButton2" then
-        aimPressed = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-    elseif Config.AimKey == "LeftShift" then
-        aimPressed = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
-    elseif Config.AimKey == "LeftControl" then
-        aimPressed = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-    elseif Config.AimKey == "Q" then
-        aimPressed = UserInputService:IsKeyDown(Enum.KeyCode.Q)
-    elseif Config.AimKey == "E" then
-        aimPressed = UserInputService:IsKeyDown(Enum.KeyCode.E)
+    -- Handle NoClip
+    handleNoClip()
+    
+    -- Handle Infinite Ammo
+    handleInfiniteAmmo()
+    
+    -- Handle No Cooldown
+    handleNoCooldown()
+    
+    -- Update ESP
+    for player, objects in pairs(ESP_Cache) do
+        if not player.Parent then
+            RemoveESP(player)
+            continue
+        end
+        
+        local character = player.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            local rootPart = character.HumanoidRootPart
+            
+            if humanoid and humanoid.Health > 0 then
+                local vector, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                
+                -- Wallhack: Show ESP even if not on screen
+                if Config.Wallhack then
+                    onScreen = true
+                end
+                
+                if onScreen then
+                    -- Box ESP
+                    if Config.BoxESP then
+                        local head = character:FindFirstChild("Head")
+                        if head then
+                            local headVec = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+                            local legVec = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
+                            local height = legVec.Y - headVec.Y
+                            local width = height / 2
+                            
+                            objects.Box.Visible = true
+                            objects.Box.Size = Vector2.new(width, height)
+                            objects.Box.Position = Vector2.new(vector.X - width / 2, headVec.Y)
+                            
+                            -- Change color for wallhack
+                            if Config.Wallhack then
+                                objects.Box.Color = Config.WallhackColor
+                            else
+                                objects.Box.Color = Config.BoxColor
+                            end
+                        end
+                    else
+                        objects.Box.Visible = false
+                    end
+                    
+                    -- Name ESP
+                    if Config.NameESP then
+                        objects.Name.Visible = true
+                        objects.Name.Position = Vector2.new(vector.X, vector.Y - 25)
+                        if Config.Wallhack then
+                            objects.Name.Color = Config.WallhackColor
+                        end
+                    else
+                        objects.Name.Visible = false
+                    end
+                    
+                    -- Health ESP
+                    if Config.HealthESP then
+                        objects.Health.Text = math.floor(humanoid.Health) .. " HP"
+                        objects.Health.Visible = true
+                        objects.Health.Position = Vector2.new(vector.X, vector.Y - 10)
+                        objects.Health.Color = Color3.new(1 - humanoid.Health/100, humanoid.Health/100, 0)
+                    else
+                        objects.Health.Visible = false
+                    end
+                    
+                    -- Distance ESP
+                    if Config.DistanceESP then
+                        local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
+                        objects.Distance.Text = math.floor(distance) .. "m"
+                        objects.Distance.Visible = true
+                        objects.Distance.Position = Vector2.new(vector.X, vector.Y + 15)
+                    else
+                        objects.Distance.Visible = false
+                    end
+                    
+                    -- Tracers
+                    if Config.Tracers then
+                        objects.Tracer.Visible = true
+                        objects.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        objects.Tracer.To = Vector2.new(vector.X, vector.Y)
+                    else
+                        objects.Tracer.Visible = false
+                    end
+                else
+                    for _, drawing in pairs(objects) do
+                        drawing.Visible = false
+                    end
+                end
+            else
+                for _, drawing in pairs(objects) do
+                    drawing.Visible = false
+                end
+            end
+        else
+            for _, drawing in pairs(objects) do
+                drawing.Visible = false
+            end
+        end
     end
     
     -- Aimbot
-    if Config.Aimbot and aimPressed then
+    if Config.Aimbot and IsAimKeyPressed() then
         local target = GetClosestTarget()
         if target then
             AimAtTarget(target)
         end
     end
     
-    -- Triggerbot
-    if Config.Triggerbot then
-        CheckTrigger()
-    end
-end)
-
--- Menu Toggle
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Config.MenuKey then
-        Config.MenuOpen = not Config.MenuOpen
-        MainFrame.Visible = Config.MenuOpen
-    elseif input.KeyCode == Config.UnloadKey then
-        -- Clean up
-        if FOVCircle then
-            FOVCircle:Remove()
-        end
-        for _, esp in pairs(ESPCache) do
-            for _, drawing in pairs(esp) do
-                pcall(function() drawing:Remove() end)
+    -- One Hit Kill
+    if Config.OneHitKill then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    humanoid.MaxHealth = 1
+                end
             end
         end
-        ScreenGui:Destroy()
     end
 end)
 
-print("=" .. string.rep("=", 50))
-print("🎯 KKGZ ULTIMATE - FULLY FIXED AND LOADED")
-print("=" .. string.rep("=", 50))
-print("✓ TEAM CHECK - Working on all games")
-print("✓ AIMBOT - Fixed for snipers/AWM")
-print("✓ ESP - Persistent and working")
-print("✓ UI - Fully functional")
-print("✓ FOV Circle - Working")
-print("=" .. string.rep("=", 50))
-print("RightShift - Toggle Menu")
-print("Delete - Unload")
-print("RMB - Aim (configurable)")
-print("=" .. string.rep("=", 50))
+-- Player Events
+Players.PlayerAdded:Connect(AddESP)
+Players.PlayerRemoving:Connect(RemoveESP)
+
+-- Initialize ESP for all players
+for _, player in pairs(Players:GetPlayers()) do
+    AddESP(player)
+end
+
+-- Initialize drawing objects
+CreateFOVCircle()
+
+-- Menu Toggle Key
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.Insert then
+        Config.MenuOpen = not Config.MenuOpen
+        MainFrame.Visible = Config.MenuOpen
+    elseif input.KeyCode == Enum.KeyCode.Delete then
+        unloadScript()
+    end
+end)
+
+-- Final notification
+local Notification = Instance.new("ScreenGui")
+Notification.Name = "KKGZ_Notification"
+Notification.Parent = CoreGui
+
+local NotifyFrame = Instance.new("Frame")
+NotifyFrame.Size = UDim2.new(0, 350, 0, 120)
+NotifyFrame.Position = UDim2.new(1, -360, 1, -130)
+NotifyFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+NotifyFrame.BorderSizePixel = 0
+NotifyFrame.Parent = Notification
+
+local NotifyCorner = Instance.new("UICorner")
+NotifyCorner.CornerRadius = UDim.new(0, 8)
+NotifyCorner.Parent = NotifyFrame
+
+local NotifyStroke = Instance.new("UIStroke")
+NotifyStroke.Color = Color3.fromRGB(255, 0, 0)
+NotifyStroke.Thickness = 2
+NotifyStroke.Parent = NotifyFrame
+
+local NotifyText = Instance.new("TextLabel")
+NotifyText.Size = UDim2.new(1, -10, 1, -10)
+NotifyText.Position = UDim2.new(0, 5, 0, 5)
+NotifyText.BackgroundTransparency = 1
+NotifyText.Text = "KKGZ MENU ULTIMATE LOADED\nFeatures: Speed | Fly | Wallhack | Auto Kill | Server Crash\nAimbot: Right Click | Menu: Insert | Unload: Delete"
+NotifyText.TextColor3 = Color3.fromRGB(0, 255, 0)
+NotifyText.Font = Enum.Font.SourceSansBold
+NotifyText.TextSize = 14
+NotifyText.TextWrapped = true
+NotifyText.Parent = NotifyFrame
+
+-- Auto remove notification
+spawn(function()
+    wait(10)
+    Notification:Destroy()
+end)
+
+print("==================================")
+print("KKGZ MENU ULTIMATE LOADED")
+print("Aimbot Key: " .. Config.AimKey)
+print("Menu: INSERT | Unload: DELETE")
+print("Features: Speed, Fly, Wallhack, Auto Kill, Server Crash")
+print("==================================")
